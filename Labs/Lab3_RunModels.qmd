@@ -1,0 +1,135 @@
+---
+title: "Lab 3: Let's make, run, and check models"
+author: "Jesse Brunner"
+date: "`r Sys.Date()`"
+format: 
+  html:
+    toc: true
+    embed-resources: true
+    code-fold: false
+execute:
+  include: false
+---
+
+Our goal is simply to practice using Bayesian models to 
+
+1. Generate data
+2. Fit models to the data
+3. Evaluate the fit
+4. Use fit models to answer questions
+
+
+# Problem 1: Counting cards
+
+Suppose you have a deck with only three cards. Each card has two sides, and each side is either black or white. The cards are 1: B/B, 2: B/W, and 3: W/W. Now suppose the cards are put in a bag and mixed up. A person draws a card and shows you that one side is black. 
+
+Using the garden of forking data / counting paths approach to show that the probability the _other_ side of this card is also black. Hint: think of the first ring as one side of the cards and the second as the other side. (You can just draw a picture and attach a photo in your file rather than figure out how the heck to make these pictures!)
+
+Repeat this counting paths approach to calculate the probability that the other side is black if we had four cards, two that were B/B, one that was B/W, and one that was W/W. 
+
+# Problem 2: Estimating prevalence
+
+Imagine we are interested in the prevalence of elk-hoof disease in a large^[Large enough that we can assume that removing one individual for sampling does not appreciably change the prevalence in the remaining individuals. If our population were small enough this were not the case, we'd want to use a hypergeometric likelihood.] herd of elk. We will have a couple of surveys to work with. In each case, assume we are perfect at detecting disease and have no false positives. 
+
+## First survey
+FWP collected samples from 22 elk and found no evidence of disease in any of them. Fit a Bayesian model to these data assuming that we had no prior information about the prevalence, $p$, of this disease such that every possible value of $p$ was equally likely. Use a grid approximation to estimate the posterior.
+```{r}
+
+```
+
+Then let's use `sample()` to produce samples from the posterior. (What do we have now?)
+```{r}
+#| include: true
+samples <- sample(p_grid, prob=posterior, size=1e4, replace=TRUE)
+```
+
+What does the distribution of these samples look like? 
+::: {.callout-tip}
+## Hint
+Consider `hist(samples)`, `plot(density(samples))`, or `rethinking::dens(samples)`. Ggplot options are also fine.
+:::
+
+Given this model and data, what is the most likely estimate of prevalence in this herd?
+```{r}
+
+```
+
+Your FWP colleagues would like to know the maximum prevalence consistent with these data at 905 confidence. That is, what is the upper 95% quantile of the posterior?
+```{r}
+
+```
+
+## Second survey
+Imagine that following this initial survey a second survey found that one of 15 elk were diseased. What is does the posterior of the distribution look like now? What are you best estimates of prevalence (point estimate) and the 95th percentile of the posterior? Has the upper 95th quantile gotten narrower or wider? Why?
+
+```{r}
+
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+## Second survey, ignoring the first
+Repeat this analysis of the second survey assuming we did not know about or excluded the first survey.
+
+```{r}
+ 
+```
+
+What is the consequence of ignoring prior information?
+
+## A posterior predictive check
+Finally, your FWP would like you to predict what the data from a future surveys of 30 elk might look like. They suggest you just use your best estimate of prevalence, but you would like to be sure your predictions of data account for parameter uncertainty. In the end you compromise and decide to present both. (Use the fit model that accounts for the data from both surveys.) 
+
+```{r}
+# naive predictions of data, with point estimate
+
+
+# posterior predictive distribution, w/ parameter uncertainty
+
+```
+
+
+# Problem 3 
+Consider these data on the gender of the first-born (`birth1`) and second-born (`birth1`) children of 100 two-children families. In this data set a `1` indicates a male and a `0` indicates a female at birth. 
+```{r}
+#| include: true
+#| message: false
+library(rethinking)
+data(homeworkch3)
+head(birth1)
+sum(birth1) + sum(birth2) # 111 males in total
+```
+
+Using grid approximation, compute the posterior distribution for the probability of a birth being a boy. Assume a uniform prior probability. Which parameter value maximizes the posterior probability?
+```{r}
+
+```
+
+Using the `sample()` function, draw 10,000 random parameter values from the posterior distribution you calculated. Use these samples to estimate the 50%, 89%, and 97% highest posterior density intervals.
+```{r}
+ 
+```
+
+Use `rbinom()` to simulate 10,000 replicates of 200 births, accounting for parameter uncertainty. You should end up with 10,000 numbers, each one a count of boys out of 200 births. Compare the distribution of predicted numbers of boys to the actual count in the data (111 boys out of 200 births). Does it look like the model fits the data well? That is, does the distribution of predictions include the actual observation as a central, likely outcome?
+```{r}
+ 
+```
+
+Now compare 10,000 counts of boys from 100 simulated first-borns only to the number of boys observed among the first births, `birth1`. How does the model in this light?
+```{r}
+ 
+```
+
+The model assumes that sex of first and second births are independent. To check this assumption, focus now on second births that followed female first-borns. Compare 10,000 simulated counts of boys to only those second births that followed girls. To do this correctly, you need to count the number of first-borns who were girls and simulate that many births, 10,000 times. Compare the counts of boys in your simulations to the actual observed count of boys following girls How does the model look in this light? Any guesses what is going on in these data?
+```{r}
+ 
+```
+
+
