@@ -1,0 +1,81 @@
+---
+title: "Ch2: Small worlds"
+author: "Jesse Brunner"
+format: 
+  revealjs:
+    embed-resources: true
+---
+
+## What do we mean by small worlds?
+
+Simply this: 
+
+-  we are working with models
+-  models are simplification of reality
+    -  they are incomplete
+    -  they are myopic
+  
+## Probability as counting
+
+-  For each possible explanation of the data (i.e., possible value of $p$)
+-  Count all of the ways the data could happen (i.e., plausibility of data | $p_{proposed}$)
+-  Explanations with more ways to produce them are more plausible
+
+
+## Probability as counting {auto-animate=true}
+
+Most formulas for probabilities are just short-cuts for counting (or integrating). E.g., the binomial distribution:
+
+\begin{align}
+\Pr(k \text{ of } n | p) &= \binom{n}{k}p^k(1-p)^{n-k} \\
+             &= \frac{n!}{k!(n-k)!} p^k(1-p)^{n-k}
+\end{align}
+
+
+## Probability as counting {auto-animate=true}
+
+Most formulas for probabilities are just short-cuts for counting (or integrating). E.g., the binomial distribution:
+
+\begin{align}
+\Pr(k \text{ of } n | p) &= \binom{n}{k}p^k(1-p)^{n-k} \\
+             &= \frac{n!}{k!(n-k)!} p^k(1-p)^{n-k}
+\end{align}
+
+_Note_: This formula provides us a short-cut for calculating the probability of observing $k$ of $n$ "successes" _given_ a particular value of the **parameter** $p$.
+
+
+## Bayes theorem {auto-animate=true}
+
+\begin{align} 
+\Pr(p_i | k) &= \frac{\text{Probability of data} | p_i\times \text{Prior probability of }p_i}{\text{Probability of the data overall}} 
+\end{align}
+
+## Bayes theorem {auto-animate=true}
+
+\begin{align}
+\Pr(p_i | k) &= \frac{\text{Probability of data} | p_i\times \text{Prior probability of }p_i}{\text{Probability of the data overall}} \\
+&= \frac{\Pr(k \text{ of } n | p_i) \times Pr(p_i)}{Pr(k)} 
+\end{align}
+
+## Bayes theorem {auto-animate=true}
+
+\begin{align}
+\Pr(p_i | k) &= \frac{\text{Probability of data} | p_i\times \text{Prior probability of }p_i}{\text{Probability of the data overall}} \\
+&= \frac{\Pr(k \text{ of } n | p_i) \times Pr(p_i)}{Pr(k)} \\
+&= \frac{\Pr(k \text{ of } n | p_i) \times Pr(p_i)}{\sum_{i=1}^n \Pr(k \text{ of } n | p_i) \times Pr(p_i)}
+\end{align}
+
+## Parts of the model {.smaller .incremental}
+
+-  Data (e.g., water or land in globe-flipping example)
+-  Description of the distribution of the data | parameters (NB: likelihood)
+    * $W \sim \text{binomial}(n, p)$
+    * can also involve description of how parameters vary with data
+        - (e.g., $\text{logit}(p_i) = \alpha + \beta \times x_i$)
+- Description of the prior probability of the parameters
+    * $p \sim \text{beta}(1, 2)$
+-  Some engine to do the calculations
+    * integration (nope) & conjugate priors (sometimes you get lucky!)
+    * grid approximation
+    * quadratic approximation (`quap()`)
+    * MCMC, WinBugs, JAGS, **Stan** (`ulam()`)

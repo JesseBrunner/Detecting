@@ -1,0 +1,147 @@
+---
+title: "Ch1: Golem of Prague"
+author: "Jesse Brunner"
+format: 
+  revealjs:
+    embed-resources: true
+---
+
+## Statistical models as golems
+
+-  Powerful & unyielding
+-  Follow instructions with single-minded purpose
+-  Only "know" what they are told to do
+
+::: {.fragment}
+Cannot tell us what is "right", "True", or even "OK to say"
+:::
+
+::: {.fragment}
+Let's not treat our Golems (statistics) as police
+:::
+
+::: {.fragment}
+We must treat our Golems as tools
+:::
+
+## Why can't golems _rule out_ or _falsify_ hypotheses?
+
+1.  Hypotheses are not models (and as we will see, golems only know deal with models)
+
+-  One hypothesis might be represented by many model**s**
+
+_Hypothesis_: pathogen transmission is shaped by variability in susceptibility
+
+_Models_: $\beta I^p S^q$, $ks \ln\left(1+\frac{\beta I}{k}\right)$, $\frac{\beta S I}{c+S+I}$, ...
+
+## Why can't golems _rule out_ or _falsify_ hypotheses?
+
+1.  Hypotheses are not models (and as we will see, golems only know deal with models)
+
+-  One hypothesis might be represented by many model**s**
+-  One model might be consistent with many hypothese**s**
+
+_All of those models might come from heterogeneity in susceptibility, but also spatial or contact structure, etc._
+
+## Why can't golems _rule out_ or _falsify_ hypotheses?
+
+1.  Hypotheses are not models (and as we will see, golems only know deal with models)
+2.  Measurements matter
+-  Observation error: _uncertainty in what we observe, biases, measurement error_
+-  Hypotheses are continuous: _X is more/less important, not simply T/F_
+
+_How do we measure heterogeneity? How much counts as a lot?_
+
+## Let's simulate some data {.smaller}
+
+| Round | Heads | Coins flipped |
+|-------|-------|---------------|
+| 1     |       |               |
+| 2     |       |               |
+| 3     |       |               |
+| 4     |       |               |
+| 5     |       |               |
+| 6     |       |               |
+| 7     |       |               |
+| 8     |       |               |
+| 9     |       |               |
+| 10    |       |               |
+| 11    |       |               |
+| 12    |       |               |
+| 13    |       |               |
+| 14    |       |               |
+| 15    |       |               |
+| 16    |       |               |
+| 17    |       |               |
+| 18    |       |               |
+| 19    |       |               |
+| 20    |       |               |
+
+## Why can't golems _rule out_ or _falsify_ hypotheses?
+
+1.  Hypotheses are not models (and as we will see, golems only know deal with models)
+2.  Measurements matter
+3.  We make inference about hypotheses as a group, by consensus
+
+## Science is not a series of statistical proceedures
+
+::: {.fragment}
+**We must be the captains of our own ship**
+:::
+
+
+## What do you want from your statistics?
+
+:::: {.columns}
+
+::: {.column width="40%"}
+Understand **causation**?
+
+-  Does $x \rightarrow y$?
+-  Is $x_1$ more important than $x_2$?
+-  What is the value of parameter $\beta$?
+:::
+
+::: {.column width="60%"}
+**Predict** likely outcomes?
+
+-  Which model is better at predicting new observations?
+-  What can we expect in a new time or place?
+:::
+
+::::
+
+::: {.fragment .center}
+_These are not the same_
+:::
+
+## Different goals require different approaches
+
+:::: {.columns}
+
+::: {.column width="40%"}
+Understand **causation**?
+
+-  Experiments
+-  Directed acyclic graphs
+-  Path analysis
+
+:::
+
+::: {.column width="60%"}
+**Predict** future outcomes?
+
+-  Cross validation
+-  Information criteria 
+-  Sensitivity analysis
+:::
+
+::::
+
+::: {.fragment .center}
+What is good for prediction _may not_ be good for understanding causation
+:::
+
+::: {.fragment .center}
+But all of this requires statistical golems
+:::
