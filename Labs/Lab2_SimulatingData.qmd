@@ -350,16 +350,7 @@ OK, so with these basic tools in mind, I would like you to do the following:
 7.  You have demonstrated a fundamental theorem in statistics. Do you know what that is?
 
 ```{r}
-#| include: false
-#| 
-tmp <- rbinom(1e6, 25, 0.65)/25
-mean(tmp)
-sd(tmp)
 
-ggplot(tibble(p = tmp), aes(x=p)) + 
-  geom_histogram(aes(y = after_stat(density)), binwidth = 0.04) +
-  stat_function(fun = dnorm, args = list(mean = 0.651304, sd = 0.09549791)) + scale_x_continuous("p", limits = c(0,1))
-  
 ```
 
 
