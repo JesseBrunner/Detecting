@@ -1,0 +1,367 @@
+---
+title: "Lab 2: Simulating & Sampling data"
+author: "Jesse Brunner"
+date: "`r Sys.Date()`"
+format: 
+  html:
+    toc: true
+    embed-resources: true
+    code-fold: false
+---
+
+## A call to arms
+
+Today's lab is an introduction to simulating data. Wait! Before you fall asleep, let me take a stab at convincing you that simulating data is important. Super important and helpful, no less!  
+
+Imagine you have your data in hand from your latest study or experiment and you go to analyze it. You do some fancy statsy things and you get a number back (maybe an estimate or a threshold or an information criteria), but, in your heart of hearts you wonder: _Is this right? Did I maybe mess this up? Did the statistics get it wrong?_ Well here's the problem: you can't know! Not really. After all, you do not know the process that actually process(es) that produced these data. In fact, often you're trying to figure out what that process was. So how could you know? 
+
+Enter simulation! If you make up the data, you know exactly what process produced it! You know whether you were using a linear or a logistic relationship between $x$ and $y$. You know the slope and the intercept, not to mention the error distribution and the variance you used! It is the rare instance where you know The Truth.  If your statistical routines and wizardry can recover that Truth, or something reasonably similar, then that should give you confidence that they can work with real data where we don't know any of the relevant details about the generating process with any certainty. If your methods _don't_ work, well, at least you have fair warning and you stand a chance of fixing them before applying them to real data, or at least not listening to their wrong results too closely. 
+
+You can simulate data to test your statistical methods, but also to design better studies. And in a Bayesian stats workflow we're going to simulate the heck out of things to see if our priors make sense, if our posterior predictions are reasonably consistent with our data, and even counterfactual pretend scenarios. It's a hugely powerful tool and we'll be using it a lot. So, buckle up! We're going for a ride!
+
+
+::: {.callout-warning}
+Be honest. Something weird sometimes happens when we move from data collection to working with or analyzing data in the computer, maybe especially when using R: we forget what all of these little numbers _mean_. What used to be, say, the number of prey a focal predator ate in a certain amount of time because just some generic number, indistinguishable from, say, the amount of time of the trial or the number of lines in a data frame. We need to resist this haze that somehow comes to cloud our minds. We need to remember that we are scientists and we know what the heck these things means! So today, while we learn to simulate data, which, by the way, is one of the most useful skills you will gain in this class, we must keep our eyes focused on what these numbers _mean_, every...step...of...the...way. 
+:::
+
+
+# Simulating data, by hand
+
+We're going to simulate some data by hand, using coins and rice and things. We're going to do this because it is fun, but also because we want to ground what we're doing in reality. 
+
+## Coin flips with addition 
+If we each have a couple of pennies and we all flip them together we can count how many heads (=successes) we had out of $N$ (number of coins) _independent_ trials. This is like having an experiment with $N$ mice each in a separate Y-maze (or sequentially run in the same maze) and recording whether they choose the "correct" side of the Y. Or any number of other similar scenarios in our research. Of course in this case we know that there is a 50:50 chance of getting a success in each trial, but most of the time we are trying to estimate an unkown probability of success (however that is defined). 
+
+Anyway, let's flip all of our coins 20 time, counting the number off successes in each round to see what our data might look like if, say, our mouse was simply guessing.
+
+## Data in hand, let's explore it
+
+In this case we had essentially a single process producing our data. There were no covariates or confounding anythings. But even still, there were a variety of outcomes from the process, yes? That is, a simple, single process does not produce the same observation over and over again. There is a _distribution_ of outcomes^[Why am I beating this dead horse? Because, again, we want to think very carefully and explicitly at what we have in our hands and what we're doing with it. This stuff can be slippery!]. Thus what we want to do now is examine  the _distribution_ of outcomes from each process. How? Well, a histogram is a good start.
+
+Remember our work flow? 
+
+  1.  load the data, 
+  2.  check the data, 
+  3.  make any adjustments that might be needed 
+  4.  calculate summaries and make plots to ensure we understand what we are dealing with, and 
+  5.  re-organize, summarize, or manipulate the data however we need, repeating the prior steps as needed.
+  
+
+::: {.callout-tip}
+## Your turn to try it
+Let's use our workflow to examine the distributions of our coin flip outcomes.
+:::
+
+
+# Simulating data less tediously (`rdist()`)
+
+As fun as this was^[Will be? You're in my future and I'm in your past.], it does take a while. Plus, many of you already know that R has some built-in functions to simulate data. Let's just explore those, starting with coin flips
+
+Coin flips are each so-called Bernoulli trials, single trials each with a probability of success of, in this case, $P(success)=0.5$. In this case, the number of successes is either 0 or 1. If we have a number of Bernoulli trials then the number of successes is described by the binomial distribution. To simulate data from a binomial distribution in R we use the `rbinom()` function.
+```{r}
+## Binomial, coin-flips
+# The number of heads from one trial with 20 coins, each coin having a 50% probability of landing on heads.
+rbinom(n=1, size=20, prob=0.5)
+
+# The number of heads in each of twenty trials with 20 coins, each coin having  a 50% probability of landing on heads.
+rbinom(n=20, size=20, prob=0.5)
+```
+
+We can see that this is more-or-less like what we produced in terms of data from actually flipping coins. How similar does it look? Try plotting these data to compare. 
+
+However, R is much faster, indefatigable, and more flexible than our coins. For instance, it's pretty difficult to create a biased coin with a known $P(success)\neq 0.5$, for instance 0.33, but R has no trouble.
+```{r}
+# The number of heads in each of twenty trials with 20 coins, each coin having  a 33% probability of landing on heads.
+rbinom(n=20, size=20, prob=0.33)
+```
+We can also generate a _lot_ more simulated outcomes without straining. In fact...
+
+::: {.callout-tip}
+## Your turn to try it
+Let's see what distribution of successes would look like in 100 rounds of coin flipping 20 coins with a biased coin ($P(success) = 0.33$). You have all of the tools. Give it a shot. 
+
+What about 50 rounds of binomial outcomes with 14 trials each simulating a predation experiment where each prey item as a 20% chance of being eaten? Go crazy!
+:::
+
+Of course you can play with any sort of distribution that R has built in---`rpois` (Poisson), `rnbinom` (Negative binomial or beta-Poisson), `rgamma` (gamma), `rnorm` (normal or Gaussian), `rlnorm` (lognormal), etc.---or you can even build your own. There are a lot of tools for making up data and they are very, very handy!
+
+# From observations to theoretical distributions
+
+The binomial random number generator we've used to simulate observations of coin-flips / mouse choice in a Y-maze, as well as all of the other ones you know about, has a counterpart, a probability mass function (for discrete outcomes, like we've been using) or a probability density function (for continuous outcomes)---but called a PDF in either case. It does not provide random outcome or observations from a process, but the _probabilities_ (or probability density...more on this later) of observing these possible outcomes. 
+
+Sticking with the coin flips / binomial example for a bit, what is the probability of observing 2 out of 20 heads with a fair coin?
+
+Option 1: simulate the snot out of it, and calculate the fraction where there was only one head:
+```{r}
+sim <- rbinom(1e6, size=20, prob = 0.5)
+sum(sim == 2)/length(sim)
+```
+So, quite small!
+
+Option 2: use the PDF
+```{r}
+dbinom(x=2, size=20, prob=0.5)
+```
+Very small. You can see that the answer from simulation is close to the theoretical number, but not quite. The larger our number of simulations the closer we'll get to the theoretical outcome. Often, close enough is close enough. 
+
+Now, what are the probabilities of the other possible outcomes?
+```{r}
+dbinom(x=0:20, size=20, prob=0.5)
+```
+It look like the most likely outcome, with a probability of 0.1762, is 10 out of 20 coins being heads. Can we plot this? Sure!
+
+```{r}
+plot(x=0:20, y=dbinom(x=0:20, size=20, prob=0.5))
+```
+
+Let's see if we can plot our sampled data, `heads`, but with a fair coin, along side our theoretical probabilities. Yes, in base R we need to use `points()` to add points to an existing plot. But here we go
+
+```{r}
+# remake our heads data set for a fair coin
+heads <- rbinom(n=100, size=20, prob=0.5)
+#plot the histogram
+hist(heads, breaks=0:20)
+
+# add the points of the theoretical expectation
+points(x=0:20, y=dbinom(x=0:20, size=20, prob=0.5))
+```
+
+OK, that looks odd. What happened? 
+
+Recall that `dbinom()` tells us the probability of each outcome. The sum of all possible outcomes must equal 1, right? Otherwise it wouldn't be a probability distribution! However, our histogram is plotting the number of observations of each outcome. It is much, much higher. Currently, if we added up all the bars they would sum to 100 for the 100 rounds we simulated. We can change the behavior of `hist()` to plot the _proportion_ of observations instead of the number, in which case these two things should be on the same scale. 
+```{r}
+#plot the histogram, with a y axis of the proportion
+hist(heads, breaks=0:20, freq=FALSE)
+
+# add the points of the theoretical expectation
+points(x=0:20, y=dbinom(x=0:20, size=20, prob=0.5))
+```
+
+Bingo! So they look similar, yes? But not identical, for sure. The issue is that the outcomes are, well, random! Sometimes you just get a few more, say, 8's than you expect, but it's still coming from a coin-flip type of experiment. 
+
+::: {.callout-note}
+This is one of the additional reasons I think simulating data is important: it gives you a sense of what is possible, even without a "cause" (e.g., some mechanism that influences the outcome from the mean).
+:::
+
+
+Briefly, so you can replicate this same thing in the Tidyverse if you so choose, let me demonstrate the same thing:
+```{r}
+#| message: false
+library(tidyverse)
+
+ggplot(tibble(x=heads), aes(x)) + 
+  geom_histogram(aes(y=after_stat(density)), 
+                 binwidth=1, ) + 
+  stat_function(fun=dbinom, 
+                args=list(size=20, prob=0.5), 
+                n=21, 
+                geom="point") +
+  scale_x_continuous("Number of successes in a round", 
+                     limits=c(0,20), 
+                     breaks=0:20) + 
+  scale_y_continuous("Number of rounds with x successes")
+```
+
+OK, there are two bits of voodoo at work here. The first is in the `geom_histogram()` call, where we use `after_stat()` to tell the histogram to use `density` instead of its default of `count`^[If you tried this years ago you would have instead said `y=..dens..`. I don't know or understand the logic, but there you go]. The other thing is this `stat_function()` call, that you probably have not used. It is often useful in that you can give it a function, a list of arguments to that function, and the number of points along the x-axis to evaluate that function and it will then do the plotting for you. Try futzing with things to see if you understand how it works. 
+
+However, if things get much more complicated than this (e.g., you have different distributions for different groups or similar), you are better off just creating a data frame with the $x$ and $y$ values and then plotting those with normal plotting tools. 
+
+# Cumulative distributions and quantile functions
+
+The binomial (and every other distribution) has an associated cumulative distribution and a quantile function. These are just different ways of looking at the same thing, and we won't be using them much in this class, so I'm including them for completeness more than anything. 
+
+Going back to our coin-flipping example, what if we were interested in the fraction or the probability of rounds where the number of successes were, say, 12 or less. How could we sort this out? 
+
+We could, of course, go through our simulated data sets and simply ask what fraction of outcomes were less than or equal to 12. 
+```{r}
+sum(heads <= 12) / length(heads)
+```
+
+Or we could do this more generally by finding the cumulative number (or fraction) of rounds of our coin flipping experiment that had 0, 1, 2, ... 20 successes.
+
+Here is the same logic, just looped over different values so that (I hope) you can see what's happening. 
+```{r}
+fraction <- numeric()
+
+for(i in 0:20){
+  fraction[i+1] <- sum(heads <= i) / length(heads)
+}
+fraction
+plot(x=0:20, y=fraction)
+```
+
+It is worth noting that there are a lot of ways to get this information. For instance, the function `hist()` actually calculates this, too:
+```{r}
+print(hist(heads, breaks=0:21, plot=FALSE)) # Look in density
+
+cumsum( hist(heads, breaks=0:21, plot=FALSE)$density )
+```
+
+Anyway, you will not be surprised that we can take a theoretical approach, as if we were summing up all of the precise, analytical probabilities produced by `dbinom()`. Ineed, there's a function for it: `pbinom()`. This provides the _probability_ of observing a value of $x$ or less. It gives us the same thing as we were just figuring out, but it's a probability based on the underlying binomial distribution, not a fraction of observations that meet that criterion.
+```{r}
+pbinom(0:20, size=20, prob=0.5)
+
+plot(x=0:20, y=pbinom(0:20, size=20, prob=0.5), col = "red", pch = 2)
+```
+
+Let's plot the cumulative proportion of samples with $x$ successes (our "empirical" data) as well as the theoretical probabilities from the CDF to see how they compare.
+```{r}
+plot(x=0:20, y=fraction)
+points(x=0:20, y=pbinom(0:20, size=20, prob=0.5), col = "red", pch = 2)
+```
+Rather similar!
+
+
+Finally, we can flip things on their heads, so to speak, and instead find the number of successes we should see at any given cumulative probability. As in, 95% of the time we should observe $x$ or fewer successes. We use the `qbinom()` (or equivalents for any other distribution in R) to do these calculations for us.
+
+```{r}
+qbinom(p=0.95, size=20, prob=0.5)
+```
+So we can expect 95% of all coin-flip experiments with 20 fair coins to have 14 or fewer successes. 
+
+Or we can plot the whole thing:
+```{r}
+plot(x=0:100/100, 
+     qbinom(p=0:100/100, size=20, prob=0.5)
+     )
+```
+
+
+## The point:
+
+The point of all of this has simply been so that you understand a) what we are getting out of statistical distributions, and b) the different ways we can use them. Or in other words, what do `rbinom()`, `dbinom()`, `pbinom()`, and`qbinom()` _do_ and how do they relate? 
+
+Here is a quicker, simpler visual explanation of how these functions relates:
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+#| fig-cap: The relationships and function of the PDF (dbinom), random deviate generating function (rbinom), CDF (pbinom), and quantile function (qbinom) of the binomial distribution. Follow the arrows from input to ouput. Note the line from x=9.5 is defined as 0 in dbinom, but 0.412 in pbinom. Also, qbinom for 0.412 yields 9. Think about why. 
+
+library(cowplot)
+theme_set(theme_minimal())
+
+df <- tibble(x=0:20, 
+       prob = dbinom(x, size = 20, prob = 0.5), 
+       cump = pbinom(x, size = 20, prob = 0.5))
+
+segs <- tibble(x = c(5, 8, 9.5,  11), 
+               prob = dbinom(x, size = 20, prob = 0.5), 
+              cump = pbinom(x, size = 20, prob = 0.5), 
+              qump = qbinom(cump, size = 20, prob = 0.5))
+
+# dbinom
+dp <- ggplot(df, aes(x, prob)) + geom_point() +
+  geom_segment(data=segs, aes(xend = x, y=0, yend = prob), col = "red") + 
+  geom_segment(data=segs, aes(x=x, xend=0, y=prob, yend=prob), col = "red", arrow = arrow(type = "closed", length = unit(0.2, "cm"))) + 
+  labs(y="Probability mass", 
+       title = "dbinom()") + 
+  scale_x_continuous(minor_breaks = 0:20)
+
+# rbinom
+rp <- ggplot(df, aes(x, prob)) + geom_point() +
+  geom_segment(data=tibble(x=rbinom(n=7, size = 20, prob=0.5), prob=dbinom(x, size = 20, prob=0.5)), aes(x=x, xend=x, y=prob, yend=0), col = "orange", arrow = arrow(type = "closed", length = unit(0.2, "cm"))) + 
+  labs(y="", 
+       title = "rbinom()") + 
+  scale_x_continuous(minor_breaks = 0:20)
+
+# pbinom
+pp <- ggplot(df, aes(x, cump)) + geom_point() + geom_step(direction="hv") +
+  geom_segment(data=segs, aes(xend = x, y=0, yend = cump), col = "darkgreen") + 
+  geom_segment(data=segs, aes(x=x, xend=0, y=cump, yend=cump), col = "darkgreen", arrow = arrow(type = "closed", length = unit(0.2, "cm"))) + 
+  labs(y="Cumulative probability", 
+       title = "pbinom()") + 
+  scale_x_continuous(minor_breaks = 0:20)
+
+# qbinom
+
+qp <- ggplot(df, aes(x, cump)) + geom_point() + geom_step(direction="hv") +
+  geom_segment(data=segs, aes(x=qump, xend = qump, y=cump, yend = 0), col = "blue", arrow = arrow(type = "closed", length = unit(0.2, "cm"))) + 
+  geom_segment(data=segs, aes(x=qump, xend=0, y=cump, yend=cump), col = "blue") + 
+  labs(y="", 
+       title = "qbinom()") + 
+  scale_x_continuous(minor_breaks = 0:20)
+
+plot_grid(dp, rp, pp, qp)
+```
+
+
+This pattern and thinking is also true for all of the other distributions, such as the normal distribution:
+
+```{r}
+#| echo: false
+#| fig-cap: The relationships and function of the PDF (dnorm), random deviate generating function (rnorm), CDF (pnorm), and quantile function (qnorm) of the normal or Gaussian distribution. Follow the arrows from input to ouput.
+
+library(cowplot)
+theme_set(theme_minimal())
+
+df <- tibble(x=seq(-4, 4, length.out=500), 
+       prob = dnorm(x), 
+       cump = pnorm(x))
+
+segs <- tibble(x = c(0.7, -1.2, -0.4), 
+               prob = dnorm(x), 
+               cump = pnorm(x))
+
+# dnorm
+dp <- ggplot(df, aes(x, prob)) + geom_line() +
+  geom_segment(data=segs, aes(xend = x, y=0, yend = prob), col = "red") + 
+  geom_segment(data=segs, aes(x=x, xend=-4, y=prob, yend=prob), col = "red", arrow = arrow(type = "closed", length = unit(0.2, "cm"))) + 
+  labs(y="Probability density", 
+       title = "dnorm()")
+
+# rnorm
+rp <- ggplot(df, aes(x, prob)) + geom_line() +
+  geom_segment(data=tibble(x=rnorm(7), prob=dnorm(x)), aes(x=x, xend=x, y=prob, yend=0), col = "orange", arrow = arrow(type = "closed", length = unit(0.2, "cm"))) + 
+  labs(y="", 
+       title = "rnorm()")
+
+# pnorm
+pp <- ggplot(df, aes(x, cump)) + geom_line() +
+  geom_segment(data=segs, aes(xend = x, y=0, yend = cump), col = "darkgreen") + 
+  geom_segment(data=segs, aes(x=x, xend=-4, y=cump, yend=cump), col = "darkgreen", arrow = arrow(type = "closed", length = unit(0.2, "cm"))) + 
+  labs(y="Cumulative probability", 
+       title = "pnorm()")
+
+# qnorm
+
+qp <- ggplot(df, aes(x, cump)) + geom_line() +
+  geom_segment(data=segs, aes(xend = x, y=cump, yend = 0), col = "blue", arrow = arrow(type = "closed", length = unit(0.2, "cm"))) + 
+  geom_segment(data=segs, aes(x=x, xend=-4, y=cump, yend=cump), col = "blue") + 
+  labs(y="", 
+       title = "qnorm()")
+
+plot_grid(dp, rp, pp, qp)
+```
+
+Each has its own set of functions to work with the underlying probability distribution. 
+
+
+# Your assignment:
+
+OK, so with these basic tools in mind, I would like you to do the following:
+
+1.  Simulate one-million data sets of 25 coin flips with a $Pr(\text{success}) = p= 0.65$
+2.  For each data set, calculate the proportion of successes ($\hat{p_i} = \text{successes}_i/n_i$ in data set $i$)
+3.  Calculate the mean and standard deviation of these 100 estimates of $p$
+4.  Plot a histogram of these estimates of $p$. What shape do you think it is?
+6.  Add a line or points from a theoretical distribution that you think describes the distribution of estimates of $p$. How close can you get the theoretical distribution to fit the empirical distribution of parameter estimates? (Hint: you might need to play around with the number of bins or binwidth to get things to look right. There are only so many values that $\hat{p}_i$ can take, after all.)
+7.  You have demonstrated a fundamental theorem in statistics. Do you know what that is?
+
+```{r}
+#| include: true
+#| 
+tmp <- rbinom(1e6, 25, 0.65)/25
+mean(tmp)
+sd(tmp)
+
+ggplot(tibble(p = tmp), aes(x=p)) + 
+  geom_histogram(aes(y = after_stat(density)), binwidth = 0.04) +
+  stat_function(fun = dnorm, args = list(mean = 0.651304, sd = 0.09549791)) + scale_x_continuous("p", limits = c(0,1))
+  
+```
+
+
+
+
