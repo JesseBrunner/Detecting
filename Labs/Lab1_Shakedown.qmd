@@ -391,49 +391,21 @@ All of that makes it easier to use and maintain. But now, we want to use it.
 1. Plot mean daily VPD against date (with whatever plotting function you like), like we just did with temperature.
 
 ```{r}
-#| include: false
-climate$VPD <- vpd(temperature=climate$Temperature, RH=climate$RH)
 
-daily_logger <- tapply(X = climate$VPD, 
-               INDEX = list(climate$Date, climate$LoggerID), 
-               FUN = mean)
-
-daily <- apply(X = daily_logger, 
-               MARGIN = 1, 
-               FUN = mean, na.rm=TRUE)
-
-daily <- data.frame(daily)
-daily$Date <- as.Date(rownames(daily))
-colnames(daily)[1] <- "MeanVPD"
 ```
 
 ```{r}
-#| include: false
-ggplot(data = daily, aes(x=Date, y = MeanVPD)) + 
-  geom_line() + geom_point() + 
-  scale_x_date(minor_breaks = "week") + 
-  scale_y_continuous("Mean daily vapor pressure deficit (kPa)")
+
 ```
 
 2. Plot the maximum VPD measured by each logger.
 
 
 ```{r}
-#| include: false
 
-logger <- tapply(X = climate$VPD, 
-               INDEX = climate$LoggerID, 
-               FUN = max)
-
-logger <- data.frame(logger)
-logger$ID <- rownames(logger)
-colnames(logger)[1] <- "MaxVPD"
 ```
 
 ```{r}
-#| include: false
-ggplot(data = logger, aes(x=MaxVPD, y = ID)) + 
-  geom_point() + 
-  scale_x_continuous("Maximum vapor pressure deficit (kPa)") +
-  labs(caption = "Not sure why I rotated the figure, but there you go")
+
+
 ```
