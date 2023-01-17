@@ -440,7 +440,7 @@ Again, depending on the random values of `a`, the red line might not fall in the
 We can do the same for the other parameter, $\sigma_{\log}$. 
 ```{r}
 hist(sample.sdlog, freq = FALSE, breaks = 0:200/100)
-curve(dexp(x, rate=TRUE), add = TRUE)
+curve(dexp(x, rate=2), add = TRUE)
 abline(v=sdlogs[1], col = "red")
 ```
 
@@ -716,11 +716,244 @@ So far we have fit each model to the data it produced, as a check on how well it
 
 Let's simply re-fit the Type I model to the Type II data. 
 
-MORE HERE
+Again, we can use the same machinery as before; we just need to be careful about making sure we're using the right data and right parameters. So please pay attention to the variable names!
+
+```{r}
+# Step 1
+# This is identical to the pars data frame above. 
+# Just repeating it for clarity/completeness
+pars3 <- expand.grid(
+  a = seq(from=0, to=1, length.out=100), 
+  sdlog = seq(from=0, to=2, length.out=100)
+)
+
+# Step 2
+LL3 <- sapply(X = 1:nrow(pars), 
+             FUN = function(i) {
+               sum(
+                 dlnorm(x=obs2, # <- obs sim from Type II model 
+                        meanlog = log(pars3$a[i]*carc), #mu_log
+                        sdlog = pars3$sdlog[i],
+                        log=TRUE # to calculate the log-likelihood
+                        )
+               )
+             }
+             )
+
+# Step 3
+post_ish3 <- LL3 + 
+  dnorm(pars3$a, mean=0.5, sd=0.25, log=TRUE) + 
+  dexp(pars3$sdlog, rate=2, log=TRUE)
+
+# Step 4
+post3 <- exp(post_ish3 - max(post_ish3))
+```
+
+Then we can use the same approach as above to collect samples from the posterior: 
+```{r}
+samples3 <- sample(1:length(post3), size = 1e4, replace=TRUE, prob = post3)
+
+sample3.a <- pars2$a[samples3]  
+sample3.sdlog <- pars3$sdlog[samples3]
+```
+And to plot our posterior distributions 
+```{r}
+hist(sample3.a, freq = FALSE, breaks = 0:100/100)
+curve(dnorm(x, mean=0.5, sd = 0.25), add = TRUE)
+abline(v=as[1], col = "red")
+
+hist(sample3.sdlog, freq = FALSE, breaks = 0:200/100)
+curve(dexp(x, rate=2), add = TRUE)
+abline(v=sdlogs[1], col = "red")
+```
+
+So you _might_ be seeing that the estimate of the $\sigma_{\log}$ parameter is a bit higher than the True parameter. Can you imagine why? I would guess that this is because the data are deviating more from the straight line expectation of the Type I model since they _actually_ come from a saturating relationship.
+
+Probably what we're most interested in is seeing whether the _wrong_ model can generate predictions that are reasonably consistent with the actual (simulated) data. So let's first plot these relationships between initial and consumed carcasses most consistent with the prior and data. 
+```{r}
+plot(x=0:10, y=0:10, type = "l", lty=2)
+
+# some draws from the prior of a
+for(i in 1:20){
+  abline(a=0, b=as[i], col = rgb(0,0,1, alpha = 0.2))
+}
+
+# draws from the posterior 
+for(i in 1:1000){
+  abline(a=0, b=sample3.a[i], col = rgb(0,0,0, alpha = 0.05))
+}
+
+```
+
+And then let us see what sort of _observations_ we would expect under this model.
+```{r}
+# Generate a range of values along the x-axis
+new_carcs <- seq(0.1, 10, length.out=50)
+
+# for each value along the x-axis, generate 10,000 possible observations
+# each based on a draw of a and sdlog
+possible_obs <- sapply(X = new_carcs, 
+                       FUN = function(x) {
+                         rlnorm(n=1e4, 
+                                meanlog = log(x*sample3.a[1:1e4]), 
+                                sdlog = sample3.sdlog[1:1e4])
+                       }
+)
+
+# With this huge matrix, calculate interval at each x-value
+interval <- apply(X=possible_obs, 
+                  MARGIN = 2,
+                  FUN = rethinking::PI, prob = 0.9)
+
+# transpose and convert to data frame
+pred_obs <- as.data.frame(t(interval))
+# add in x-values and predicted mean
+pred_obs$carc <- new_carcs
+pred_obs$pred <- mean(sample3.a)*pred_obs$carc
+
+# rename 5% and 95% since R will choke on those
+names(pred_obs)[1:2] <- c("low", "hi")
+
+plot(0:10, 0:10, type = "l", lty=2) # 1:1 line
+lines(pred ~ carc, data = pred_obs, col = "red") # mean prediction
+lines(low ~ carc, data = pred_obs, col = "red", lty=3) #lower
+lines(hi ~ carc, data = pred_obs, col = "red", lty=3) # upper
+
+# plot actual (simulated) observations
+points(x=carc, y=obs2)
+```
+
+So at this point it does seem our model can predict data that are consistent with our actual data, _but_ it does that by assuming a large standard deviation around the expected (or mean) line. It also sort of looks like the model tends to underpredict carcass consumption at low amounts of initial carcass mass and over predicts consumption at higher initial masses. Let's explore this deviation from the expectation to look for systematic bias, which would be indicative of a poorly-fitting model.
+
+First, for each actual (simulated) observation, let's generate a prediction, here based on the average value of $a$ across the posterior
+```{r}
+predicted <- mean(sample3.a)*carc
+```
+Then let's plot the difference between the actual (simulated) observations and this prediction against the initial carcass mass.
+```{r}
+plot(x=carc, y=obs2-predicted)
+abline(a=0, b=0, lty = 2) # a line at zero to make this pattern clearer
+```
+
+So yes, my intuition about underpredicting for low initial masses and overpredicting for high initial masses seems to be supported. In other words, this Type I model is struggling to explain the observations simulated from the Type II model. This would be bad for our model if that was our goal, but it is good for our goal of correctly differentiating the "correct" functional relationship between carcass consumption and initial carcass mass. 
+
+This would be a more compelling example if we had done the same thing for the Type II model.
+```{r}
+predictedII <- mean(sample2.a)*carc/(1+mean(sample2.a)*carc*mean(sample2.h))
+plot(x=carc, y=obs2-predictedII)
+abline(a=0, b=0, lty = 2)
+
+```
+
+Right! So whatever systematic bias we observed when fitting the wrong model is not apparent here. It's not exactly a tight fit in that there is still a lot of scatter around the line! It's only that the scatter above versus below the zero line seems equivalent wherever we are along the x-axis.
+
+We could also see the reverse, how well the Type II model predicts data simulated from the Type I process, but I'll set that aside for now. 
+
+I'll also set aside metrics of "fit" for now (because I _know_ you're all wondering how we can measure the fit of both models to the data). So more later. For now, onward!
 
 # Real data!
 
-OK, all of that was warm-up, model and tool development and testing. It was all meant so that we could be confident we knew how things worked. _Now_ we are ready to fit the model to our actual data!
+All of that was warm-up, model and tool development and testing. It was all meant so that we could be confident we knew how things worked. _Now_ we are ready to fit the model to our actual data^[Actually, we had data from two ponds, but we have not yet seen how to deal with this issue, so we'll begin with just the single pond.]!
+
+```{r}
+# Data from Smoot Hill pond
+initial <- c(0.2, 0.5, 1, 1.5, 1.6, 1.6, 2.1, 2.2, 2.7, 
+             3.1, 4.4, 6.5, 8.2, 8.1, 9.4, 10.8)
+consumed <- c(0.2, 0.4, 0.6, 0.5, 0.4, 1, 0.3, 0.6, 0.6, 
+              1.2, 1.4, 0.9, 1.2, 1.5, 1.3, 1.5)
+
+plot(consumed ~ initial)
+```
+
+We've done the hard work of building the code to fit the two models, so let's simply recycle that code here, being sure we're using the right variable names.
+
+### The type I model
+I'm labeling everything with an `I` for the Type I model
+```{r}
+# Step 1
+# This is identical to the pars data frame above. 
+# Just repeating it for clarity/completeness
+parsI <- expand.grid(
+  a = seq(from=0, to=1, length.out=100), 
+  sdlog = seq(from=0.01, to=2, length.out=100)
+)
+
+# Step 2
+LL_I <- sapply(X = 1:nrow(parsI), 
+             FUN = function(i) {
+               sum(
+                 dlnorm(x=consumed, # the real data! 
+                        meanlog = log(parsI$a[i]*initial), #mu_log
+                        sdlog = parsI$sdlog[i],
+                        log=TRUE # to calculate the log-likelihood
+                        )
+               )
+             }
+             )
+
+# Step 3
+post_ishI <- LL_I + 
+  dnorm(parsI$a, mean=0.5, sd=0.25, log=TRUE) + 
+  dexp(parsI$sdlog, rate=2, log=TRUE)
+
+# Step 4
+post_I <- exp(post_ishI - max(post_ishI, na.rm=TRUE))
+```
+
+Get samples
+```{r}
+samplesI <- sample(1:length(post_I), size = 1e4, replace=TRUE, prob = post_I)
+
+sampleI.a <- parsI$a[samplesI]  
+sampleI.sdlog <- parsI$sdlog[samplesI]
+```
+plot our posterior distributions 
+```{r}
+hist(sampleI.a, freq = FALSE, breaks = 0:100/100)
+curve(dnorm(x, mean=0.5, sd = 0.25), add = TRUE)
+
+hist(sampleI.sdlog, freq = FALSE, breaks = 0:200/100)
+curve(dexp(x, rate=2), add = TRUE)
+```
+
+```{r}
+# Generate a range of values along the x-axis
+new_carcs <- seq(min(initial), max(initial), length.out=50)
+
+# for each value along the x-axis, generate 10,000 possible observations
+# each based on a draw of a and sdlog
+possible_obs <- sapply(X = new_carcs, 
+                       FUN = function(x) {
+                         rlnorm(n=1e4, 
+                                meanlog = log(x*sampleI.a[1:1e4]), 
+                                sdlog = sampleI.sdlog[1:1e4])
+                       }
+)
+
+# With this huge matrix, calculate interval at each x-value
+interval <- apply(X=possible_obs, 
+                  MARGIN = 2,
+                  FUN = rethinking::PI, prob = 0.9)
+
+# transpose and convert to data frame
+pred_obs <- as.data.frame(t(interval))
+# add in x-values and predicted mean
+pred_obs$carc <- new_carcs
+pred_obs$pred <- mean(sampleI.a)*pred_obs$carc
+
+# rename 5% and 95% since R will choke on those
+names(pred_obs)[1:2] <- c("low", "hi")
+
+plot(0:10, 0:10, type = "l", lty=2) # 1:1 line
+lines(pred ~ carc, data = pred_obs, col = "red") # mean prediction
+lines(low ~ carc, data = pred_obs, col = "red", lty=3) #lower
+lines(hi ~ carc, data = pred_obs, col = "red", lty=3) # upper
+
+# plot actual (Real!) observations
+points(x=initial, y=consumed)
+```
+
+The type II model
 
 MORE HERE: fit both models, examine pars, plot posterior predictive plot for both models on same axes with data. Interpret result
 
