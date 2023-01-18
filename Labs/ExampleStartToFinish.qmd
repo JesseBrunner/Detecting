@@ -489,8 +489,64 @@ for(i in 1:100){
 
 We can see that the relationship is much narrower than it might have been. 
 
+This is a bit, um, _ad hoc_. Why don't we formalize a way to calculate the range of possible lines that are most consistent with our priors and data. That is, let's find a consistency (or credible or confidence) _envelope_ around the average line that includes, say, 90% of the posterior probability.
+
+```{r}
+# Generate a range of values along the x-axis
+new_carcs <- seq(0.1, 10, length.out=50)
+
+# for each value along the x-axis, generate 10,000 possible observations
+# each based on a draw of the parameter, a 
+possible_lines <- sapply(X = new_carcs, 
+                       FUN = function(x) {
+                         x*sample.a[1:1e4]
+                       }
+)
+```
+If you inspect this (e.g., `head(possible_lines)`) you will see that there are 50 columns representing the 50 positions along the x-axis, each with a y-value (expected carcass consumption) from the 10,000 draws from the $a$ posteriors. Think of it as one line per row, each line (and row) corresponding to one sample from the posterior. That might be a bit too much to plot, but we can use a quantile function to find the 5th and 95th percentiles, or similar, among the observations at each point along the x-axis. 
+```{r}
+interval_lines <- apply(X=possible_lines, 
+                  MARGIN = 2,
+                  FUN = rethinking::PI, prob = 0.9)
+```
+
+If you inspect this you see the range of the internal 90% of possible observations. However, it is wide rather than long. Thankfully, R makes it easy to transpose a matrix:
+```{r}
+head( t(interval_lines))
+```
+So let's make a data frame with these intervals,
+```{r}
+pred_lines <- as.data.frame(t(interval_lines))
+```
+add in the x-values,
+```{r}
+pred_lines$carc <- new_carcs
+```
+and the mean predicted line based on the mean value of $a$ from the posterior,
+```{r}
+pred_lines$mean <- mean(sample.a)*pred_lines$carc
+
+head(pred_lines)
+```
+So now we have a data frame with all of the values we want to plot. The only issue is that it is hard to call variables with names like `5%`, so we first need to rename those columns.
+
+```{r}
+# rename 5% and 95% since R will choke on those
+names(pred_lines)[1:2] <- c("low", "hi")
+
+plot(0:10, 0:10, type = "l", lty=2) # 1:1 line
+lines(mean ~ carc, data = pred_lines, col = "red") # mean prediction
+lines(low ~ carc, data = pred_lines, col = "red", lty=2) #lower
+lines(hi ~ carc, data = pred_lines, col = "red", lty=2) # upper
+
+# plot actual (simulated) observations
+points(x=carc, y=obs)
+```
+
+So in this figure the solid line is the predicted relationship between the initial and consumed carcass mass from the mean of the posterior distribution and the dashed lines represent the 5th and 95th percentiles of the posterior. 
+
 ## Posterior predictive checks
-It can be useful to plot the range of likely values of the _observations_. After all, we might get the gist of the relationship right, but really miss the mark in the data-generating process. For instance, perhaps our actual (simulated) observations often lie outside of the range of what our golem expects. These more extreme observations would tend to pull our golem's understanding to these extremes. More on this in the future. But for now, let's see how we could produce and plot possible observations. 
+It can be useful to plot the range of likely values of the _observations_. After all, we might get the gist of the relationship right, but really miss the mark in the data-generating process. For instance, perhaps our actual (simulated) observations often lie outside of the range of what our golem expects. These more extreme observations would tend to pull our golem's understanding to these extremes. More on this in the future. But for now, let's see how we could produce and plot possible observations. It will follow a _very_ similar path to our method of generating the consistency envelope.
 
 ```{r}
 # Generate a range of values along the x-axis
@@ -507,31 +563,23 @@ possible_obs <- sapply(X = new_carcs,
 )
 ```
 
-If you inspect this (e.g., `head(possible_obs)`) you will see that there are 50 columns representing the 50 positions along the x-axis, each with 1000 possible observations given 10,000 draws from the $a$ and the $\sigma_{\log}$ posteriors. That might be a bit too much to plot, but we can use a quantile function to find the 5th and 95th percentiles, or similar, among the observations at each point along the x-axis. 
+As above, if you inspect this (e.g., `head(possible_obs)`) you will see that there are 50 columns representing the 50 positions along the x-axis, but now each row is a possible set of _observations_ corresponding to a draw from the posterior distribution of $a$ and $\sigma_{\log}$.  Again, we can use the `quantile()` or `PI()` functions to find a particular interval of these observations. 
 ```{r}
 interval <- apply(X=possible_obs, 
                   MARGIN = 2,
                   FUN = rethinking::PI, prob = 0.9)
-```
-If you inspect this you see the range of the internal 90% of possible observations. However, it is wide rather than long. Thankfully, R makes it easy to transpose a matrix:
-```{r}
-head( t(interval))
-```
-So let's make a data frame with these intervals,
-```{r}
-pred_obs <- as.data.frame(t(interval))
-```
-add in the x-values,
-```{r}
-pred_obs$carc <- new_carcs
-```
-and the predicted line based on the mean value of $a$ from the posterior
-```{r}
-pred_obs$pred <- mean(sample.a)*pred_obs$carc
-```
 
-We can plot this **posterior predictive interval** and then superimpose our actual (simulated) observations.
-```{r}
+# transpose and turn into a data frame.
+pred_obs <- as.data.frame(t(interval))
+
+#add in the x-values,
+pred_obs$carc <- new_carcs
+
+#and the predicted line based on the mean value of $a$ from the posterior
+pred_obs$pred <- mean(sample.a)*pred_obs$carc
+
+# and  plot this **posterior predictive interval** 
+
 # rename 5% and 95% since R will choke on those
 names(pred_obs)[1:2] <- c("low", "hi")
 
@@ -544,7 +592,7 @@ lines(hi ~ carc, data = pred_obs, col = "red", lty=3) # upper
 points(x=carc, y=obs)
 ```
 
-We should see that most, but not necessarily all of the observations fall within our prediction interval. We should also _not_ see systematic deviations from what the model says is likely, which would indicate some sort of bias or model misspecification. 
+We should see that most, but not necessarily all of the observations fall within our 90% prediction interval. We should also _not_ see systematic deviations from what the model says is likely, which would indicate some sort of bias or model misspecification. More on this later.
 
 ::: {.callout-tip}
 ## Hint
@@ -665,10 +713,59 @@ for(i in 1:1000){
 }
 ```
 
-And finally, we can calculate and plot a posterior predictive interval describing the range of _observations_ most consistent with our prior and data.
+Or, better, we can plot a consistency envelope around our predicted line.
 ```{r}
 # Generate a range of values along the x-axis
 new_carcs <- seq(0.1, 10, length.out=50)
+
+# for each value along the x-axis, generate 10,000 possible observations
+# each based on a draw of a and sdlog
+possible_lines2 <- sapply(X = new_carcs, 
+                       FUN = function(x) {
+                         x*sample2.a[1:1e4]/(1+x*sample2.a[1:1e4]*sample2.h[1:1e4])
+                       }
+)
+
+# at each position then find the upper and lower 90% interval
+interval_lines2 <- apply(X=possible_lines2, 
+                  MARGIN = 2,
+                  FUN = rethinking::PI, prob = 0.9)
+
+# transpose and convert to a data frame
+pred_lines2 <- as.data.frame(t(interval_lines2))
+
+#add in the x-values,
+pred_lines2$carc <- new_carcs
+# and the predicted line based on the mean value of a & h from the posterior
+pred_lines2$pred <- mean(sample2.a)*pred_lines2$carc/(1+mean(sample2.a)*pred_lines2$carc*mean(sample2.h))
+
+
+# plot posterior predictive interval
+# rename 5% and 95% since R will choke on those
+names(pred_lines2)[1:2] <- c("low", "hi")
+
+plot(0:10, 0:10, type = "l", lty=2) # 1:1 line
+lines(pred ~ carc, data = pred_lines2, col = "red") # mean prediction
+lines(low ~ carc, data = pred_lines2, col = "red", lty=2) #lower
+lines(hi ~ carc, data = pred_lines2, col = "red", lty=2) # upper
+
+# plot actual (simulated) observations
+points(x=carc, y=obs2)
+
+
+```
+
+
+And finally, we can calculate and add a posterior predictive interval describing the range of _observations_ most consistent with our prior and data.
+```{r}
+# Same stuff from prior chunk
+plot(0:10, 0:10, type = "l", lty=2) # 1:1 line
+lines(pred ~ carc, data = pred_lines2, col = "red") # mean prediction
+lines(low ~ carc, data = pred_lines2, col = "red", lty=2) #lower
+lines(hi ~ carc, data = pred_lines2, col = "red", lty=2) # upper
+
+# plot actual (simulated) observations
+points(x=carc, y=obs2)
 
 # for each value along the x-axis, generate 10,000 possible observations
 # each based on a draw of a and sdlog
@@ -690,24 +787,17 @@ pred_obs2 <- as.data.frame(t(interval2))
 
 #add in the x-values,
 pred_obs2$carc <- new_carcs
-# and the predicted line based on the mean value of a & h from the posterior
-pred_obs2$pred <- mean(sample2.a)*pred_obs2$carc/(1+mean(sample2.a)*pred_obs2$carc*mean(sample2.h))
-
 
 # plot posterior predictive interval
 # rename 5% and 95% since R will choke on those
 names(pred_obs2)[1:2] <- c("low", "hi")
 
-plot(0:10, 0:10, type = "l", lty=2) # 1:1 line
-lines(pred ~ carc, data = pred_obs2, col = "red") # mean prediction
 lines(low ~ carc, data = pred_obs2, col = "red", lty=3) #lower
 lines(hi ~ carc, data = pred_obs2, col = "red", lty=3) # upper
 
-# plot actual (simulated) observations
-points(x=carc, y=obs2)
 ```
 
-The _vast_ majority of that code is the same. So, again, as long as you keep track of what's what, you don't need to reinvent the wheel each time you construct or run a model.
+The _vast_ majority of that code is the same. So, again, as long as you keep track of what's what, you don't need to reinvent the wheel each time you construct or run a model. 
 
 
 # Fitting each model to the other's data
@@ -823,7 +913,7 @@ lines(hi ~ carc, data = pred_obs, col = "red", lty=3) # upper
 points(x=carc, y=obs2)
 ```
 
-So at this point it does seem our model can predict data that are consistent with our actual data, _but_ it does that by assuming a large standard deviation around the expected (or mean) line. It also sort of looks like the model tends to underpredict carcass consumption at low amounts of initial carcass mass and over predicts consumption at higher initial masses. Let's explore this deviation from the expectation to look for systematic bias, which would be indicative of a poorly-fitting model.
+So at this point it does seem our model can predict data that are consistent with our actual data, _but_ it does that by assuming a large standard deviation around the expected (or mean) line. It also sort of looks like the model tends to under-predict carcass consumption at low amounts of initial carcass mass and over predicts consumption at higher initial masses. Let's explore this deviation from the expectation to look for systematic bias, which would be indicative of a poorly-fitting model.
 
 First, for each actual (simulated) observation, let's generate a prediction, here based on the average value of $a$ across the posterior
 ```{r}
@@ -868,7 +958,7 @@ plot(consumed ~ initial)
 We've done the hard work of building the code to fit the two models, so let's simply recycle that code here, being sure we're using the right variable names.
 
 ### The type I model
-I'm labeling everything with an `I` for the Type I model
+I'm labeling everything with an `I` for the Type I model. Again, the code is essentially the same, following the steps of the grid-approximation routine: 
 ```{r}
 # Step 1
 # This is identical to the pars data frame above. 
@@ -907,7 +997,7 @@ samplesI <- sample(1:length(post_I), size = 1e4, replace=TRUE, prob = post_I)
 sampleI.a <- parsI$a[samplesI]  
 sampleI.sdlog <- parsI$sdlog[samplesI]
 ```
-plot our posterior distributions 
+We can then examine our posterior distributions for the two parameters of the model. 
 ```{r}
 hist(sampleI.a, freq = FALSE, breaks = 0:100/100)
 curve(dnorm(x, mean=0.5, sd = 0.25), add = TRUE)
@@ -915,6 +1005,7 @@ curve(dnorm(x, mean=0.5, sd = 0.25), add = TRUE)
 hist(sampleI.sdlog, freq = FALSE, breaks = 0:200/100)
 curve(dexp(x, rate=2), add = TRUE)
 ```
+And finally we probably want to examine the predictions of the fit model against initial carcass mass as well as the posterior predictive distribution (i.e., what data would look like if it came from this model, given parameter _and_ sampling uncertainty) and real (for real!) data.
 
 ```{r}
 # Generate a range of values along the x-axis
@@ -922,7 +1013,42 @@ new_carcs <- seq(min(initial), max(initial), length.out=50)
 
 # for each value along the x-axis, generate 10,000 possible observations
 # each based on a draw of a and sdlog
-possible_obs <- sapply(X = new_carcs, 
+possible_linesI <- sapply(X = new_carcs, 
+                       FUN = function(x) {
+                         x*sampleI.a[1:1e4]
+                       }
+)
+
+# at each position then find the upper and lower 90% interval
+interval_linesI <- apply(X=possible_linesI, 
+                  MARGIN = 2,
+                  FUN = rethinking::PI, prob = 0.9)
+
+# transpose and convert to a data frame
+pred_linesI <- as.data.frame(t(interval_linesI))
+
+#add in the x-values,
+pred_linesI$carc <- new_carcs
+# and the predicted line based on the mean value of a & h from the posterior
+pred_linesI$pred <- mean(sampleI.a)*pred_linesI$carc
+
+
+# plot posterior predictive interval
+# rename 5% and 95% since R will choke on those
+names(pred_linesI)[1:2] <- c("low", "hi")
+
+plot(0:10, 0:10, type = "l", lty=2) # 1:1 line
+lines(pred ~ carc, data = pred_linesI, col = "red") # mean prediction
+lines(low ~ carc, data = pred_linesI, col = "red", lty=2) #lower
+lines(hi ~ carc, data = pred_linesI, col = "red", lty=2) # upper
+
+# plot actual (real!) observations
+points(x=initial, y=consumed)
+
+# NOW the posterior predictive interval
+# for each value along the x-axis, generate 10,000 possible observations
+# each based on a draw of a and sdlog
+possible_obsI <- sapply(X = new_carcs, 
                        FUN = function(x) {
                          rlnorm(n=1e4, 
                                 meanlog = log(x*sampleI.a[1:1e4]), 
@@ -931,31 +1057,213 @@ possible_obs <- sapply(X = new_carcs,
 )
 
 # With this huge matrix, calculate interval at each x-value
-interval <- apply(X=possible_obs, 
+intervalI <- apply(X=possible_obsI, 
                   MARGIN = 2,
                   FUN = rethinking::PI, prob = 0.9)
 
 # transpose and convert to data frame
-pred_obs <- as.data.frame(t(interval))
-# add in x-values and predicted mean
-pred_obs$carc <- new_carcs
-pred_obs$pred <- mean(sampleI.a)*pred_obs$carc
+pred_obsI <- as.data.frame(t(intervalI))
+# add in x-values 
+pred_obsI$carc <- new_carcs
+
 
 # rename 5% and 95% since R will choke on those
-names(pred_obs)[1:2] <- c("low", "hi")
+names(pred_obsI)[1:2] <- c("low", "hi")
 
-plot(0:10, 0:10, type = "l", lty=2) # 1:1 line
-lines(pred ~ carc, data = pred_obs, col = "red") # mean prediction
-lines(low ~ carc, data = pred_obs, col = "red", lty=3) #lower
-lines(hi ~ carc, data = pred_obs, col = "red", lty=3) # upper
+lines(low ~ carc, data = pred_obsI, col = "red", lty=3) #lower
+lines(hi ~ carc, data = pred_obsI, col = "red", lty=3) # upper
+```
+Whoo are those posterior predictive intervals wide! 
 
-# plot actual (Real!) observations
-points(x=initial, y=consumed)
+Let's also repeat our examination of the residuals (observed-expected). 
+```{r}
+predicted <- mean(sampleI.a)*initial
+
+plot(x=initial, y=consumed-predicted)
+abline(a=0, b=0, lty = 2) # a line at zero to make this pattern clearer
 ```
 
-The type II model
+So we see a very clear trend of underpredicting values of consumption at low initial carcass masses and overpredicting values of consumption at higher initial carcass masses. This is a model that is failing to produce the pattern in the data!
 
-MORE HERE: fit both models, examine pars, plot posterior predictive plot for both models on same axes with data. Interpret result
+### The type II model
+We'll follow the same workflow, just keeping the second model in mind and labeling things with `II` for the Type II model.
+```{r}
+# Step 1
+# This is identical to the pars data frame above. 
+# Just repeating it for clarity/completeness
+parsII <- expand.grid(
+  a = seq(from=0, to=1, length.out=100), 
+  h = seq(from=0, to=1, length.out=100), 
+  sdlog = seq(from=0.01, to=2, length.out=100)
+)
+
+# Step 2
+LL_II <- sapply(X = 1:nrow(parsII), 
+             FUN = function(i) {
+               sum(
+                 dlnorm(x=consumed, # the real data! 
+                        meanlog = log(parsII$a[i]*initial/(1+parsII$a[i]*initial*parsII$h[i])), #mu_log
+                        sdlog = parsII$sdlog[i],
+                        log=TRUE # to calculate the log-likelihood
+                        )
+               )
+             }
+             )
+
+# Step 3
+post_ishII <- LL_II + 
+  dnorm(parsII$a, mean=0.5, sd=0.25, log=TRUE) +
+  dbeta(parsII$h, shape1=1, shape2=3) + 
+  dexp(parsII$sdlog, rate=2, log=TRUE)
+
+# Step 4
+post_II <- exp(post_ishII - max(post_ishII, na.rm=TRUE))
+
+# Get samples
+samplesII <- sample(1:length(post_II), size = 1e4, replace=TRUE, 
+                    prob = post_II)
+
+sampleII.a <- parsII$a[samplesII]  
+sampleII.h <- parsII$h[samplesII]  
+sampleII.sdlog <- parsII$sdlog[samplesII]
+```
+
+Then we can examine the posteriors of the parameters.
+```{r}
+hist(sampleII.a, freq = FALSE, breaks = 0:100/100)
+curve(dnorm(x, mean=0.5, sd = 0.25), add = TRUE)
+
+hist(sampleII.h, freq = FALSE, breaks = 0:100/100)
+curve(dbeta(x, shape1=1, shape2=3), add=TRUE)
+
+hist(sampleII.sdlog, freq = FALSE, breaks = 0:200/100)
+curve(dexp(x, rate=2), add = TRUE)
+```
+
+I'm curious about the $a$ and $h$ parameters and how they co-vary.
+```{r}
+plot(sampleII.a, sampleII.h, pch=20, col=rgb(0,0,1, alpha=1/25))
+```
+
+That's what we expected from our simulated data, so that's nice. 
+
+Finally, let's repeat the posterior predictive plot.
+
+```{r}
+# Generate a range of values along the x-axis; same as above
+new_carcs <- seq(min(initial), max(initial), length.out=50)
+
+# for each value along the x-axis, generate 10,000 possible observations
+# each based on a draw of a and sdlog
+possible_linesII <- sapply(X = new_carcs, 
+                       FUN = function(x) {
+                         x*sampleII.a[1:1e4]/(1+x*sampleII.a[1:1e4]*sampleII.h[1:1e4])
+                       }
+)
+
+# at each position then find the upper and lower 90% interval
+interval_linesII <- apply(X=possible_linesII, 
+                  MARGIN = 2,
+                  FUN = rethinking::PI, prob = 0.9)
+
+# transpose and convert to a data frame
+pred_linesII <- as.data.frame(t(interval_linesII))
+
+#add in the x-values,
+pred_linesII$carc <- new_carcs
+# and the predicted line based on the mean value of a & h from the posterior
+pred_linesII$pred <- mean(sampleII.a)*pred_linesII$carc/(1+mean(sampleII.a)*pred_linesII$carc*mean(sampleII.h))
+
+
+# plot posterior predictive interval
+# rename 5% and 95% since R will choke on those
+names(pred_linesII)[1:2] <- c("low", "hi")
+
+plot(0:10, 0:10, type = "l", lty=2) # 1:1 line
+lines(pred ~ carc, data = pred_linesII, col = "blue") # mean prediction
+lines(low ~ carc, data = pred_linesII, col = "blue", lty=2) #lower
+lines(hi ~ carc, data = pred_linesII, col = "blue", lty=2) # upper
+
+# plot actual (real!) observations
+points(x=initial, y=consumed)
+
+# NOW the posterior predictive interval
+# for each value along the x-axis, generate 10,000 possible observations
+# each based on a draw of a and sdlog
+possible_obsII <- sapply(X = new_carcs, 
+                       FUN = function(x) {
+                         rlnorm(n=1e4, 
+                                meanlog = log(x*sampleII.a[1:1e4]/(1+x*sampleII.a[1:1e4]*sampleII.h[1:1e4])), 
+                                sdlog = sampleII.sdlog[1:1e4])
+                       }
+)
+
+# With this huge matrix, calculate interval at each x-value
+intervalII <- apply(X=possible_obsII, 
+                  MARGIN = 2,
+                  FUN = rethinking::PI, prob = 0.9)
+
+# transpose and convert to data frame
+pred_obsII <- as.data.frame(t(intervalII))
+# add in x-values 
+pred_obsII$carc <- new_carcs
+
+
+# rename 5% and 95% since R will choke on those
+names(pred_obsII)[1:2] <- c("low", "hi")
+
+lines(low ~ carc, data = pred_obsII, col = "blue", lty=3) #lower
+lines(hi ~ carc, data = pred_obsII, col = "blue", lty=3) # upper
+```
+
+And for fun, let's add in the lines from the other model
+```{r}
+plot(0:10, 0:10, type = "l", lty=2) # 1:1 line
+points(x=initial, y=consumed)
+# Type II model
+lines(pred ~ carc, data = pred_linesII, col = "blue") # mean prediction
+lines(low ~ carc, data = pred_linesII, col = "blue", lty=2) #lower
+lines(hi ~ carc, data = pred_linesII, col = "blue", lty=2) # upper
+lines(low ~ carc, data = pred_obsII, col = "blue", lty=3) #lower
+lines(hi ~ carc, data = pred_obsII, col = "blue", lty=3) # upper
+# Type I model
+lines(pred ~ carc, data = pred_linesI, col = "red") # mean prediction
+lines(low ~ carc, data = pred_linesI, col = "red", lty=2) #lower
+lines(hi ~ carc, data = pred_linesI, col = "red", lty=2) # upper
+lines(low ~ carc, data = pred_obsI, col = "red", lty=3) #lower
+lines(hi ~ carc, data = pred_obsI, col = "red", lty=3) # upper
+```
+
+
+That _looks_ like a pretty good fit. Let's examine our residuals (observations - expected) to look for biases.
+
+```{r}
+predicted <- mean(sampleII.a)*initial/(1+mean(sampleII.a)*initial*mean(sampleII.h))
+
+plot(x=initial, y=consumed-predicted)
+abline(a=0, b=0, lty = 2) # a line at zero to make this pattern clearer
+```
+
+That looks much, much less bad compared to the Type I model. 
+
+So, to recap, it looks like our data are better described by a Type II model, although the predictions of the two models overlap quite a lot over the full range of our data. That said, there appears to be a large handling time:
+```{r}
+mean(sampleII.h)
+rethinking::PI(sampleII.h, prob=0.9)
+```
+Since this is handling time in units of the duration of the experiment, which was 48h, we can multiply these numbers by 48h to estimate the handling time in hours (per gram).
+```{r}
+mean(sampleII.h)*48
+rethinking::PI(sampleII.h, prob=0.9)*48
+```
+So that, from a biological point of view, seems substantial. We can use these estimates to make predictions about how many carcasses (or carcass mass) might be removed by scavengers under different data, having some confidence that a model that includes handling time is much more reasonable. However, we'll have to return to the concept of model comparison later. For now, perhaps we can compare parameter estimates and think about, for instance, what the much larger estimate of $\sigma_{\log}$ for Model I means.
+
+```{r}
+hist(sampleII.sdlog, col=NA, border = "blue", breaks = 0:100/50)
+hist(sampleI.sdlog, col=NA, border = "red", breaks = 0:100/50, add = TRUE)
+```
+
+
 
 ```{r}
 #| message: false
