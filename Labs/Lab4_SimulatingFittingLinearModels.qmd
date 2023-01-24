@@ -35,8 +35,8 @@ McElreath focused on the data of adults (`age >= 18`) and fitting a linear model
 
 We'll get to both, but first, let us first fit a simple, linear model. 
 
-# A simple model of height by weight
-Let me propose this form and priors for a model of height against weight:
+# A simple model of weight by height
+Let me propose this form and priors for a model of weight against height:
 
 $$
 \begin{align}
@@ -47,39 +47,28 @@ y_i & \sim \text{Normal}(\mu_i, \sigma) \\
 \sigma & \sim \text{Exponential}(1)
 \end{align}
 $$
-where $y_i$ is the height of individual $i$ and $x_i$ is their weight. 
+where $y_i$ is the weight of individual $i$ and $x_i$ is their height 
 
 ## Simulating possible relationships from a linear model: Prior checks
 
 Your first task is to simulate and then plot 100 possible relationships (lines) from this model, given both the structure and the priors I have provided. We'll assume that the weights vary from a low of 5 kg to a high of 50 kg. Also, please do this before looking at the data; that would be cheating! ;-)
 
 ```{r}
-
-
+# examine priors
 ```
 
 Having done so, do you have any concerns with my priors? If so, please tell me how you are changing them.
 
 ```{r}
 
-
 ```
 
 ## Fitting a simple linear model with grid approximation 
 Now that you are happy with the priors, please fit this model to the actual !Kung data using a grid approximation. Be sure to at least examine the posterior of the parameters.
 
+
 ```{r}
 # Grid approximation
-
-
-# Log-Likelihood
-
-
-# Posterior
-
-
-# Get samples from posterior
-
 
 ```
 
@@ -90,7 +79,6 @@ Let's admit it, grid approximation is clunky and slow. I, for one, keep finding 
 ```{r}
 # quap version
 
-
 ```
 
 
@@ -98,32 +86,27 @@ Let's admit it, grid approximation is clunky and slow. I, for one, keep finding 
 Examine the posterior of the key parameters (plots are helpful!) telling me what you think they tell you.
 
 
-
 If you have not yet examined the potential relationship between the parameters $a$ and $b$, do so here and tell me what you conclude.
-
-
 
 
 
 ## Revising our model structure
 
-Given the correlation we observed, let me proposal a mathematically equivalent model structure: center your $x$-axis on the mean of those $x$ values. That is, let $wt_i =  w_i - \bar{w}_i$ and use $wt$ as your predictor variable. 
+Given the correlation we observed, let me proposal a mathematically equivalent model structure: center your $x$-axis on the mean of those $x$ values. That is, let $hc_i =  h_i - \bar{h}$ and use $hc_i$ as your predictor variable. 
 ```{r}
-df$wt <- df$weight - mean(df$weight)
-summary(df$wt)
+df$hc <- df$height - mean(df$height)
+summary(df$hc)
 ```
 
 You may need to reconsider your priors. Do so and then fit the model with `quap()`. (You are welcome to repeat the fit with grid-approximation, too, if you like, but it's not necessary.)
 
 
 ```{r}
-
+# examine priors
 
 ```
 
 How did this change your results? In particular, what happened to the relationship between the parameters $a$ and $b$? Why? Similarly, how did the interpretation of the parameter $a$ change?
-
-
 
 
 ## Comparing the model expectation to the data
@@ -131,7 +114,6 @@ How did this change your results? In particular, what happened to the relationsh
 So far we have not compared the model-expected relationship between weight and height and the actual relationship observed in the data. Let's do so now.
 
 ```{r}
-
 
 ```
 
@@ -147,10 +129,10 @@ First, revise the model to accommodate a linear relationship between height and 
 
 $$
 \begin{align}
-y_i & \sim \text{Normal}(\mu_i, \sigma) \\
-\mu_i & = \alpha + \beta  (\log(x_i) - \overline{\log(x)}) \\
-\alpha & \sim \text{Normal}(130,20) \\
-\beta & \sim \text{Normal}(40,20) \\
+\log(y_i) & \sim \text{Normal}(\mu_i, \sigma) \\
+\mu_i & = \alpha + \beta  (x_i - \bar{x}) \\
+\alpha & \sim \text{Normal}(50,10) \\
+\beta & \sim \text{Normal}(0.25, 0.25) \\
 \sigma & \sim \text{Exponential}(1)
 \end{align}
 $$
@@ -159,7 +141,6 @@ $$
 Second, be sure to examine the consequence of your priors, adjusting them as needed. 
 ```{r}
 
-
 ```
 
 
@@ -167,7 +148,7 @@ Third, fit the model to the data. Let's use `quap()` again.
 
 
 ```{r}
-
+# quap version
 
 ```
 
@@ -175,24 +156,18 @@ Fourth, interpret the posterior of the parameters and interpret them as well as 
 
 ```{r}
 
-
 ```
 
-
-
-
-Fifth, graph the relationship between height and weight predicted this new model, as well as the actual observations. 
+Fifth, graph the relationship between weight and height predicted by this new model, as well as the actual observations. 
 
 ```{r}
-# plot on the log-weight scale
+# linear on the log-x scale
 
 
 # plot on the weight scale
-
 
 ```
 
 
 Sixth, what can we conclude from this analysis?
-
 

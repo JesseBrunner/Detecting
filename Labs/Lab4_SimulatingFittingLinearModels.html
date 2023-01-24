@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 <meta name="author" content="Jesse Brunner">
-<meta name="dcterms.date" content="2023-01-22">
+<meta name="dcterms.date" content="2023-01-23">
 
 <title>Lab 4: Linear models: Height and weight in the !Kung data</title>
 <style>
@@ -2620,7 +2620,7 @@ vertical-align: -.125em;
    
   <ul>
   <li><a href="#goals-for-today" id="toc-goals-for-today" class="nav-link active" data-scroll-target="#goals-for-today">Goals for today</a></li>
-  <li><a href="#a-simple-model-of-height-by-weight" id="toc-a-simple-model-of-height-by-weight" class="nav-link" data-scroll-target="#a-simple-model-of-height-by-weight">A simple model of height by weight</a>
+  <li><a href="#a-simple-model-of-weight-by-height" id="toc-a-simple-model-of-weight-by-height" class="nav-link" data-scroll-target="#a-simple-model-of-weight-by-height">A simple model of weight by height</a>
   <ul class="collapse">
   <li><a href="#simulating-possible-relationships-from-a-linear-model-prior-checks" id="toc-simulating-possible-relationships-from-a-linear-model-prior-checks" class="nav-link" data-scroll-target="#simulating-possible-relationships-from-a-linear-model-prior-checks">Simulating possible relationships from a linear model: Prior checks</a></li>
   <li><a href="#fitting-a-simple-linear-model-with-grid-approximation" id="toc-fitting-a-simple-linear-model-with-grid-approximation" class="nav-link" data-scroll-target="#fitting-a-simple-linear-model-with-grid-approximation">Fitting a simple linear model with grid approximation</a></li>
@@ -2654,7 +2654,7 @@ vertical-align: -.125em;
     <div>
     <div class="quarto-title-meta-heading">Published</div>
     <div class="quarto-title-meta-contents">
-      <p class="date">January 22, 2023</p>
+      <p class="date">January 23, 2023</p>
     </div>
   </div>
   
@@ -2701,9 +2701,9 @@ vertical-align: -.125em;
 </ol>
 <p>We’ll get to both, but first, let us first fit a simple, linear model.</p>
 </section>
-<section id="a-simple-model-of-height-by-weight" class="level1">
-<h1>A simple model of height by weight</h1>
-<p>Let me propose this form and priors for a model of height against weight:</p>
+<section id="a-simple-model-of-weight-by-height" class="level1">
+<h1>A simple model of weight by height</h1>
+<p>Let me propose this form and priors for a model of weight against height:</p>
 <p><span class="math display">\[
 \begin{align}
 y_i &amp; \sim \text{Normal}(\mu_i, \sigma) \\
@@ -2712,12 +2712,12 @@ y_i &amp; \sim \text{Normal}(\mu_i, \sigma) \\
 \beta &amp; \sim \text{Normal}(2,1) \\
 \sigma &amp; \sim \text{Exponential}(1)
 \end{align}
-\]</span> where <span class="math inline">\(y_i\)</span> is the height of individual <span class="math inline">\(i\)</span> and <span class="math inline">\(x_i\)</span> is their weight.</p>
+\]</span> where <span class="math inline">\(y_i\)</span> is the weight of individual <span class="math inline">\(i\)</span> and <span class="math inline">\(x_i\)</span> is their height</p>
 <section id="simulating-possible-relationships-from-a-linear-model-prior-checks" class="level2">
 <h2 class="anchored" data-anchor-id="simulating-possible-relationships-from-a-linear-model-prior-checks">Simulating possible relationships from a linear model: Prior checks</h2>
 <p>Your first task is to simulate and then plot 100 possible relationships (lines) from this model, given both the structure and the priors I have provided. We’ll assume that the weights vary from a low of 5 kg to a high of 50 kg. Also, please do this before looking at the data; that would be cheating! ;-)</p>
 <div class="cell">
-
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># examine priors</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p>Having done so, do you have any concerns with my priors? If so, please tell me how you are changing them.</p>
 <div class="cell">
@@ -2728,23 +2728,14 @@ y_i &amp; \sim \text{Normal}(\mu_i, \sigma) \\
 <h2 class="anchored" data-anchor-id="fitting-a-simple-linear-model-with-grid-approximation">Fitting a simple linear model with grid approximation</h2>
 <p>Now that you are happy with the priors, please fit this model to the actual !Kung data using a grid approximation. Be sure to at least examine the posterior of the parameters.</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Grid approximation</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Log-Likelihood</span></span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Posterior</span></span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Get samples from posterior</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Grid approximation</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </section>
 <section id="fitting-a-simple-linear-model-with-quap" class="level2">
 <h2 class="anchored" data-anchor-id="fitting-a-simple-linear-model-with-quap">Fitting a simple linear model with <code>quap()</code></h2>
 <p>Let’s admit it, grid approximation is clunky and slow. I, for one, keep finding that I haven’t considered a wide enough range of parameters, but also that my grid is too coarse. Plus, it’s quite easy to screw up the coding. The quadratic approximation that McElreath provided addresses some of these problems and gets us closer to using more modern, general-purpose tools. So let’s repeat our above analysis using <code>quap()</code>.</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># quap version</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># quap version</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </section>
 <section id="interpretting-parameters" class="level2">
@@ -2754,18 +2745,18 @@ y_i &amp; \sim \text{Normal}(\mu_i, \sigma) \\
 </section>
 <section id="revising-our-model-structure" class="level2">
 <h2 class="anchored" data-anchor-id="revising-our-model-structure">Revising our model structure</h2>
-<p>Given the correlation we observed, let me proposal a mathematically equivalent model structure: center your <span class="math inline">\(x\)</span>-axis on the mean of those <span class="math inline">\(x\)</span> values. That is, let <span class="math inline">\(wt_i = w_i - \bar{w}_i\)</span> and use <span class="math inline">\(wt\)</span> as your predictor variable.</p>
+<p>Given the correlation we observed, let me proposal a mathematically equivalent model structure: center your <span class="math inline">\(x\)</span>-axis on the mean of those <span class="math inline">\(x\)</span> values. That is, let <span class="math inline">\(hc_i = h_i - \bar{h}\)</span> and use <span class="math inline">\(hc_i\)</span> as your predictor variable.</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>df<span class="sc">$</span>wt <span class="ot">&lt;-</span> df<span class="sc">$</span>weight <span class="sc">-</span> <span class="fu">mean</span>(df<span class="sc">$</span>weight)</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(df<span class="sc">$</span>wt)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>df<span class="sc">$</span>hc <span class="ot">&lt;-</span> df<span class="sc">$</span>height <span class="sc">-</span> <span class="fu">mean</span>(df<span class="sc">$</span>height)</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(df<span class="sc">$</span>hc)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
--31.358 -13.603   4.447   0.000  11.598  27.382 </code></pre>
+ -84.29  -13.17   10.33    0.00   19.22   40.81 </code></pre>
 </div>
 </div>
 <p>You may need to reconsider your priors. Do so and then fit the model with <code>quap()</code>. (You are welcome to repeat the fit with grid-approximation, too, if you like, but it’s not necessary.)</p>
 <div class="cell">
-
+<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># examine priors</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p>How did this change your results? In particular, what happened to the relationship between the parameters <span class="math inline">\(a\)</span> and <span class="math inline">\(b\)</span>? Why? Similarly, how did the interpretation of the parameter <span class="math inline">\(a\)</span> change?</p>
 </section>
@@ -2783,10 +2774,10 @@ y_i &amp; \sim \text{Normal}(\mu_i, \sigma) \\
 <p>First, revise the model to accommodate a linear relationship between height and the log of weight.</p>
 <p><span class="math display">\[
 \begin{align}
-y_i &amp; \sim \text{Normal}(\mu_i, \sigma) \\
-\mu_i &amp; = \alpha + \beta  (\log(x_i) - \overline{\log(x)}) \\
-\alpha &amp; \sim \text{Normal}(130,20) \\
-\beta &amp; \sim \text{Normal}(40,20) \\
+\log(y_i) &amp; \sim \text{Normal}(\mu_i, \sigma) \\
+\mu_i &amp; = \alpha + \beta  (x_i - \bar{x}) \\
+\alpha &amp; \sim \text{Normal}(50,10) \\
+\beta &amp; \sim \text{Normal}(0.25, 0.25) \\
 \sigma &amp; \sim \text{Exponential}(1)
 \end{align}
 \]</span></p>
@@ -2796,18 +2787,18 @@ y_i &amp; \sim \text{Normal}(\mu_i, \sigma) \\
 </div>
 <p>Third, fit the model to the data. Let’s use <code>quap()</code> again.</p>
 <div class="cell">
-
+<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># quap version</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p>Fourth, interpret the posterior of the parameters and interpret them as well as you can.</p>
 <div class="cell">
 
 </div>
-<p>Fifth, graph the relationship between height and weight predicted this new model, as well as the actual observations.</p>
+<p>Fifth, graph the relationship between weight and height predicted by this new model, as well as the actual observations.</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># plot on the log-weight scale</span></span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="co"># plot on the weight scale</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># linear on the log-x scale</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="co"># plot on the weight scale</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p>Sixth, what can we conclude from this analysis?</p>
 </section>
