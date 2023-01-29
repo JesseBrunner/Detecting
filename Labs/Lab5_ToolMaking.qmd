@@ -1,0 +1,332 @@
+---
+title: "Lab 5: Tool making"
+author: "Jesse Brunner"
+date: "`r Sys.Date()`"
+format: 
+  html:
+    toc: true
+    embed-resources: true
+    code-fold: false
+execute:
+  include: true
+---
+
+Once we have a fit model, whatever "engine" we used for the fitting, we need to _do_ some things with it, or more specifically with the posterior. These tend to fall into a few categories:
+
+* Checking that the fitting routine worked as expected (`pairs()` plots and, later, `traceplot()` and the like.)
+* Evaluating the posteriors of parameters (`precis()`, `plot(precis())`, histograms, `pairs()` again, etc.)
+* Checking the posterior predictions of the _relationship_ or expected values (`link()`) and what _data_ might look like (`sim()`)
+
+This last category, where we translate values of parameters drawn from the posterior distribution into expectations for particular predictor variables (e.g., values of mean weight for a particular value of height) or simulated data (e.g., possible values of weight given a particular value of height), tends to produce a lot of data in large arrays. Even though we end up following a pretty consistent pattern in processing with these large arrays, it can still be confusing and easy to mess up. More to the point, I think we often get mired in details and lose sight of the product we're trying to construct. So today I would like us to build a tool that will help us automate these processes. My other hope is that by building this tool we better understand the steps that get us from posterior distribution to posterior predictions and predictive intervals.
+
+::: {.callout-tip}
+## Note
+There is nothing special about how we process the posterior distribution as opposed to the prior distribution. If you can get samples from your prior, you can do the same things we'll do with the posterior! They're all just parameter distributions!
+:::
+
+
+::: {.callout-warning}
+## Warning
+These tools are _fairly_ general purpose, but there will be types of models (e.g., those that `quap()` or `ulam()` will not fit) on which they might choke. That's OK. There are no completely general purpose tools. Even if these tools will not work (probably because `link()` will not be able to extract the linear or scientific model) the same logic our code uses should work. These tools are shortcuts, but not substitutes for thinking.
+:::
+
+# A toy model
+
+We need to have a model with which to play. Let's simply use the Howell data from before on weight by height. However, let's add another variable so that we get a sense of how our code will work when there are more than one predictor variable (e.g., $x1$, $x2$, etc.). We'll include `sex` in the model and have separate intercept and slopes for males and not male (as is recorded in the data).
+```{r}
+#| include: true
+#| message: false
+
+library(rethinking)
+data("Howell1")
+
+# Data set
+df <- Howell1
+# Conversions needed for model
+xbar <- mean(df$height) # mean height
+df$hc <- df$height -  xbar # heights centered on mean
+df$lwt <- log(df$weight) # log of weight
+df$sex <- df$male+1 # 1=not male, 2=male
+```
+Note that `male` was recorded as `0` or `1`. It is much easier to use indexes in model construction (i.e., `i=1,2,3...`) so I added one to each value. The zeros become `1` and the ones become `2`. We will have a vector of length two for both the intercept, `a`, and slope, `b`. So `a[1]` would be the intercept for not males and `a[2]` would be the intercept for males. Make sense?
+
+```{r}
+m1 <- quap(
+  alist(
+    lwt ~ dnorm(mu, sigma),
+    mu <- a[sex] + b[sex]*hc,
+    a[sex] ~ dnorm(2.5, 1/10),
+    b[sex] ~ dnorm(1/50, 1/200),
+    sigma ~ dexp(1)
+  ), data=df
+)
+
+precis(m1, 
+       depth=2, # The depth=2 is so that we can see the values within the vectors a & b
+       digits = 3)
+```
+
+# What does `link()` do?
+
+Now if we wanted to plot some of the predicted lines describing how log(weight) changes with height, we could first establish out some $x$ values over which we want to predict:
+```{r}
+hts <- c(-80, 0, 40) # just three values across the range centered weights
+```
+but recall that we also have `sex` to consider:
+```{r}
+sexs <- c(1,2)
+```
+However, what we really want is the combination of all of the `hts` and `sexs`.
+```{r}
+newdat <- expand.grid(hc = hts,
+                      sex = sexs)
+newdat
+```
+
+Notice that we know have a data frame with all combinations of our predictor variables. I have kept this small so we can keep track of things.
+
+If we wanted to predict what the log(weight) should be for each of these sets of predictors (e.g., rows in this data frame) we could first extract samples of the parameters from the posterior:
+```{r}
+pars <- extract.samples(m1, n=5)
+pars
+```
+and then do some multiplication, here with the first row:
+```{r}
+pars$a[1,newdat$sex] + pars$b[1,newdat$sex] * newdat$hc
+```
+See how we get a vector of six values, each the expected log(weight) given the (centered) height and sex? Importantly the order of those predictions for this first draw from the posterior (i.e., the order of the columns) is the same as the order of the predictor variables provided in the data frame. We could even add these predictions to the `newdat` data frame:
+```{r}
+newdat$pred1 <- pars$a[1,newdat$sex] + pars$b[1,newdat$sex] * newdat$hc
+
+newdat
+```
+That's handy to know!
+
+
+However, this was just one draw from the posterior. It is not special in any way. What we want to move towards is doing the same thing a bunch of times, for instance for each of the five draws from the posterior:
+```{r}
+preds <- matrix(nrow = 5, ncol=6)
+for(i in 1:5){
+  preds[i, ] <- pars$a[i,newdat$sex] + pars$b[i,newdat$sex] * newdat$hc 
+}
+preds
+```
+So here each row is derived from a different draw from the posterior and each column corresponds to a particular suite of predictor values (centered height and sex). 
+
+Now, let's compare this to what `link()` generates:
+```{r}
+preds <- link(m1, 
+              data=newdat,
+              n=5)
+preds
+```
+It is pretty much the same thing! (Well, not quite because each time we take a random draw from the posterior we're getting different values. If we took enough draws the distribution of relationships would be very similar.) 
+
+To reiterate, `link()` :
+
+1.  takes a data frame (or list) of predictor variables (it must have values for every predictor, here `hc` and `sex`) or the original data (try `str(link(m1, n=5))`),
+2.  takes `n` draws from the posterior and then,
+3.  returns a matrix with `n` rows each providing a set of predictions for all of the predictor values provided (akin to `nrow(newdat)`).
+
+`link()` is pretty robust and is easier than making our own code to generate predictions, so let's use it!
+
+# What do we do with the output of `link()`?
+
+So now we have a simple way to get a bunch (`n`) of possible sets of predicted values for whatever predictors we like. What we did in the past was calculate the mean across all of these values:
+```{r}
+apply(X = preds, 
+      MARGIN = 2, #columns
+      FUN = mean)
+```
+Or perhaps some quantiles
+```{r}
+apply(X = preds, 
+      MARGIN = 2, #columns
+      FUN = quantile, prob = 0.9) # less accurate  since we only have 5 draws
+```
+
+Let's try to generalize this into a function
+
+# A function for predicted relationsips
+Let's see if we can make a function that does automagically what we just did automanually. It's best to start simple, so let's start with a function that returns a vector of means expected values given predictors in a data frame.
+
+We can start by writing the skeleton of what we want it to take
+```{r}
+genPreds <- function(df, model, n=1e4){
+  # use link to generate preds
+  # find average across preds for each column
+  # return mean predictions
+}
+```
+Notice that I provided a default value for `n`, though we can override that when we use the function. Next step, let's have the function use `sim()` to generate predictions
+```{r}
+genPreds <- function(df, model, n=1e4){
+  # use link to generate preds
+  preds <- rethinking::link(fit=model, data=df, n=n)
+  # find average across preds for each column
+  # return mean predictions
+  return(preds) # not actually the means
+}
+```
+Notice that I used the `rethinking::` code so that R would know where to find the `link()` function if we had not yet loaded it. If we didn't do this and hadn't loaded the `rethinking` package, R would be very confused when we tried this `genPreds()` function!
+
+Let's see if this does what we expect:
+```{r}
+genPreds(df=newdat, model=m1, n=5)
+```
+That looks right so far. It just recapitulates what we've already done. 
+
+Next, let's ask it to calculate the average 
+```{r}
+genPreds <- function(df, model, n=1e4){
+  # use link to generate preds
+  preds <- rethinking::link(fit=model, data=df, n=n)
+  # find average across preds for each column
+  meanpreds <- apply(X=preds, MARGIN=2, FUN = mean)
+  # return mean predictions
+  return(meanpreds) 
+}
+```
+
+And again, let's see if this does what we expect:
+```{r}
+genPreds(df=newdat, model=m1, n=5)
+```
+That, too, seems to have worked. Again, the actual values produced by our function are going to differ from what we produced when we were doing it by hand. That is because each time we get draws from the posterior, we're getting different draws! With just five draws the means are likely to be rather different. Had we drawn, say, 50,000 values from the posterior these our means would probably be very, very similar. 
+
+Now this function is marginally useful. It automates one step, but we can make it more useful. First, what instead of just returning the column of mean predictions, which we then need to keep track of or insert into the data frame manually, it returned the data frame of predictors with these mean predictions added as a column?
+```{r}
+genPreds <- function(df, model, n=1e4){
+  # use link to generate preds
+  preds <- rethinking::link(fit=model, data=df, n=n)
+  # find average across preds for each column
+  meanpreds <- apply(X=preds, MARGIN=2, FUN = mean)
+  # add mean preds to data frame
+  df$preds_mean <- meanpreds
+  # return the data frame
+  return(df) 
+}
+```
+Test it again:
+```{r}
+genPreds(df=newdat, model=m1, n=5)
+```
+That's more useful, right?
+
+But wait! We might also want some CI^[Credible or consistency interval] calculated and returned, as well.
+```{r}
+genPreds <- function(df, model, n=1e4, lo=0.055, hi=0.945){
+  # use link to generate preds
+  preds <- rethinking::link(fit=model, data=df, n=n)
+  # find average across preds for each column
+  meanpreds <- apply(X=preds, MARGIN=2, FUN = mean)
+  # add mean preds to data frame
+  df$preds_mean <- meanpreds
+  # find lower CI and add to df
+  df$preds_lo <- apply(X=preds, MARGIN=2, FUN = quantile, prob=lo)
+  # find upper CI and add to df
+  df$preds_hi <- apply(X=preds, MARGIN=2, FUN = quantile, prob=hi)
+  # return the data frame
+  return(df) 
+}
+```
+I made a few changes here. See that I'm now using the `quantile()` function to find the lower and upper CI, but those require probability cutoffs, which I now include as variables (with defaults) in the function definition. Note that I'm also adding these to the data frame directly instead of assigning them to a variable and then adding that variable to the data frame.
+
+Let's test it:
+```{r}
+genPreds(df=newdat, model=m1, n=5)
+```
+
+I think it's working (and it's pretty simple, so this is not a surprise), at least with our simple case. Let's see if we can use this if we wanted to plot the mean and, say, 95% consistency envelope of the relationship between log(weight) and height for both sexes.
+
+```{r}
+# data frame of predictors over which we want predictions
+newdat <- expand.grid(
+  hc = seq(min(df$hc), max(df$hc), length.out = 100),
+  sex = 1:2
+  )
+# get predictions, mean and CI
+newpreds <- genPreds(df=newdat, model=m1, n=1e4, lo=0.025, hi=0.975) # might take a moment
+
+# plot data
+plot(lwt ~ hc, data = df, 
+     col = c("red", "blue")[df$sex])
+# add in non-male predicted lines and CI
+lines(preds_mean ~ hc, data=newpreds[newpreds$sex==1,], col="red")
+lines(preds_lo ~ hc, data=newpreds[newpreds$sex==1,], col="red", lty=2)
+lines(preds_hi ~ hc, data=newpreds[newpreds$sex==1,], col="red", lty=2)
+
+# add in male predicted lines and CI
+lines(preds_mean ~ hc, data=newpreds[newpreds$sex==2,], col="blue")
+lines(preds_lo ~ hc, data=newpreds[newpreds$sex==2,], col="blue", lty=2)
+lines(preds_hi ~ hc, data=newpreds[newpreds$sex==2,], col="blue", lty=2)
+```
+
+Or we can do this on the original scales. (Note the very, very tight range of lines consistent with the data and model!)
+```{r}
+plot(exp(lwt) ~ I(hc+xbar), data = df, #I() means to evaluate as-is
+     col = c("red", "blue")[df$sex])
+# add in non-male predicted lines and CI
+lines(exp(preds_mean) ~ I(hc+xbar), data=newpreds[newpreds$sex==1,], col="red")
+lines(exp(preds_lo) ~ I(hc+xbar), data=newpreds[newpreds$sex==1,], col="red", lty=2)
+lines(exp(preds_hi) ~ I(hc+xbar), data=newpreds[newpreds$sex==1,], col="red", lty=2)
+
+# add in male predicted lines and CI
+lines(exp(preds_mean) ~ I(hc+xbar), data=newpreds[newpreds$sex==2,], col="blue")
+lines(exp(preds_lo) ~ I(hc+xbar), data=newpreds[newpreds$sex==2,], col="blue", lty=2)
+lines(exp(preds_hi) ~ I(hc+xbar), data=newpreds[newpreds$sex==2,], col="blue", lty=2)
+```
+
+So, that simplified the processing of our predictions quite a lot, I think! 
+
+# What about `sim()` and posterior predicted distribution?
+In addition to simulating expected values given parameter uncertainty, we can also simulate possible observations, given parameter uncertainty _and_ sampling variation. That is, around each of the possible lines describing the relationship between height and weight there are possible observations that also include the "other stuff" McElreath talks about. We used a normal distribution to describe the variation in observations of log(weight) around the expected value, so we can use a normal distribution to simulate possible values around the predicted lines.
+
+Let's illustrate this with our simplified, small data frame of predictors. Just copying from above we get:
+```{r}
+# data frame of predictors
+newdat <- expand.grid(hc = hts,
+                      sex = sexs)
+# small sample from posterior
+pars <- extract.samples(m1, n=5)
+# predicted values from the first sample the posterior
+pars$a[1,newdat$sex] + pars$b[1,newdat$sex] * newdat$hc
+```
+If we have these predicted values, we can also generate possible observations
+```{r}
+rnorm(n=6, # one for each row in newdat
+      mean = pars$a[1,newdat$sex] + pars$b[1,newdat$sex] * newdat$hc,
+      sd = pars$sigma[1]
+)
+```
+We simply use our predicted values as the mean for `rnorm()` and provide our estimated of the standard deviation. 
+
+You can probably imagine how we might cycle through a bunch of draws from the posterior, simulating observations for each set of predictors each time. It's quite do-able following the format we used before. However, McElreath has already provided a function to do just this: `sim()`
+```{r}
+sim(fit=m1, 
+    data=newdat, 
+    n=5)
+```
+Compare this with `link(fit=m1, data=newdat, n=5)` and you should see that our simulated observations are much more spread out than the predicted values, even with a value of standard deviation of `mean(pars$sigma)` $\approx$ `r round(mean(pars$sigma),3)`. That should make some sense.
+
+If we then wanted to use the output of this `sim()` function to establish the range of possible values of observations (e.g., a 90% posterior predictive interval), we could use the same mechanics as we used in the `genPred()` function. So let's create a function that generates these intervals (but not the mean... that is not as meaningful most of the time). 
+
+```{r}
+genPPD <- function(df, model, n=1e4, lo=0.055, hi=0.945){
+  # use sim to generate predicted observation
+  # find lower quantile of predicted observations for each column
+  # find upper quantile of predicted observations for each column
+  # add these to the df
+  # return df
+}
+
+```
+
+In fact, let's make this your homework!
+
+::: {.callout-tip}
+## Your turn!
+Your homework is to build this last function and illustrate how it works with the `m1` model. The organization and code are very similar to what we did with the `genPred()` function. The only real differences is that we're using `sim()` to produce possible _observations_. 
+:::
+
+This should then provide you with two functions, one for generating predicted relationships and a confidence envelope around the mean, and one for generating posterior predictive intervals of possible observations. My hope is that these functions will help you focus more on what we want out of our models and less on the mechanics of how to get R to work with large arrays of numbers. Let me know how this works out!
