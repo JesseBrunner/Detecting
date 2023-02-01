@@ -1,0 +1,378 @@
+---
+title: "Lab 4: Linear models: Height and weight in the !Kung data"
+author: "Jesse Brunner"
+date: "`r Sys.Date()`"
+format: 
+  html:
+    toc: true
+    embed-resources: true
+    code-fold: false
+execute:
+  include: true
+---
+
+# Goals for today
+
+Chapter 4 spent a good deal of time working with the !Kung data in the `Howell1` data set.
+```{r}
+#| include: true
+#| message: false
+
+library(rethinking)
+data("Howell1")
+# rename for simplicity
+df <- Howell1
+
+head(df)
+summary(df)
+```
+
+McElreath focused on the data of adults (`age >= 18`) and fitting a linear model to those data, but we will now use the entire data set. As a heads up, there are two lessons I think we need to learn, in addition to just getting practice fitting models to data and working with the posteriors. 
+
+1.  Linear models are often useful phenomenological descriptions of the data, even when they are not not good mechanistic explanations. Moreover, we can often shoe-horn non-linear relationships into a linear form to good benefit.
+
+2.  Reformulating a model or problem into a mathematically equivalent form can have the benefits of facilitating model-fitting (i.e., removing some problems with estimation) and simplifying the interpretation of parameters.
+
+We'll get to both, but first, let us first fit a simple, linear model. 
+
+# A simple model of weight by height
+Let me propose this form and priors for a model of weight against height:
+
+$$
+\begin{align}
+y_i & \sim \text{Normal}(\mu_i, \sigma) \\
+\mu_i & = \alpha + \beta  x_i  \\
+\alpha & \sim \text{Normal}(10,10) \\
+\beta & \sim \text{Normal}(2,1) \\
+\sigma & \sim \text{Exponential}(1)
+\end{align}
+$$
+where $y_i$ is the weight of individual $i$ and $x_i$ is their height 
+
+## Simulating possible relationships from a linear model: Prior checks
+
+Your first task is to simulate and then plot 100 possible relationships (lines) from this model, given both the structure and the priors I have provided. We'll assume that the weights vary from a low of 5 kg to a high of 50 kg. Also, please do this before looking at the data; that would be cheating! ;-)
+
+```{r}
+x <- 50:180 # heights
+
+# parameters
+a <- rnorm(n=100, mean=10, sd=10)
+b <- rnorm(n=100, mean=2, sd=1)
+
+# plot y by x for each of the 100 parameter draws 
+plot(NULL, xlim = c(50,180), ylim = c(-50, 400), 
+     ylab="weight (kg)", xlab="height (cm)")
+abline(h = 0)
+
+for(i in 1:100){
+  lines(x=x, y=a[i] + b[i]*x, col = rgb(0,0,1, alpha = 1/5))
+}
+```
+
+Having done so, do you have any concerns with my priors? If so, please tell me how you are changing them.
+
+```{r}
+# I thought the intercept and slope were too variable and extreme
+
+# parameters
+a <- rnorm(n=100, mean=0, sd=5)
+b <- rnorm(n=100, mean=0.25, sd=1/4)
+
+# plot y by x for each of the 100 parameter draws 
+plot(NULL, xlim = c(50,180), ylim = c(-50, 400), 
+     ylab="weight (kg)", xlab="height (cm)")
+abline(h = 0)
+
+for(i in 1:100){
+  lines(x=x, y=a[i] + b[i]*x, col = rgb(0,0,1, alpha = 1/5))
+}
+```
+
+## Fitting a simple linear model with grid approximation 
+Now that you are happy with the priors, please fit this model to the actual !Kung data using a grid approximation. Be sure to at least examine the posterior of the parameters.
+
+
+```{r}
+# Grid approximation
+pars <- expand.grid(a = seq(from=-35, to=5, length.out=100), 
+                    b = seq(from=0, to=1/2, length.out=100), 
+                    sigma = seq(from=0.1, to=20, length.out=80)
+)
+
+
+# Log-Likelihood
+LL <- sapply(X = 1:nrow(pars), 
+             FUN = function(i) {
+               sum(
+                 dnorm(x=df$weight, 
+                        mean = pars$a[i] + pars$b[i]*df$height, 
+                        sd = pars$sigma[i],
+                        log=TRUE # to calculate the log-likelihood
+                        )
+               )
+             }
+             )
+
+# Posterior-ish
+postish <- LL + 
+  dnorm(pars$a, mean=0, sd=5, log=TRUE) + 
+  dnorm(pars$b, mean=0.25, sd=1/4, log=TRUE) + 
+  dexp(pars$sigma, rate=1, log=TRUE)
+
+post <-  exp(postish - max(postish))
+
+# Get samples from posterior
+samples <- sample(1:length(post), size = 1e4, replace=TRUE, prob = post)
+
+sample.a <- pars$a[samples] 
+sample.b <- pars$b[samples]
+sample.sigma <- pars$sigma[samples]
+
+hist(sample.a)
+hist(sample.b)
+hist(sample.sigma)
+
+plot(sample.a, sample.b, pch = 16, col = rgb(0,0,1, alpha = 1/10))
+```
+
+## Fitting a simple linear model with `quap()`
+
+Let's admit it, grid approximation is clunky and slow. I, for one, keep finding that I haven't considered a wide enough range of parameters, but also that my grid is too coarse. Plus, it's quite easy to screw up the coding. The quadratic approximation that McElreath provided addresses some of these problems and gets us closer to using more modern, general-purpose tools. So let's repeat our above analysis using `quap()`.
+
+```{r}
+# quap version
+m <- quap(
+  alist(
+    weight ~ dnorm(mu, sigma),
+    mu <- a + b*height,
+    a ~ dnorm(0, 5),
+    b ~ dnorm(0.25, 1/4),
+    sigma ~ dexp(1)
+  ), data=df
+)
+
+precis(m)
+
+samples <- extract.samples(m)
+hist(samples$a)
+hist(samples$b)
+hist(samples$sigma)
+
+plot(b ~ a, data = samples, pch = 16, col = rgb(0,0,1, alpha = 1/10))
+```
+
+
+## Interpretting parameters
+Examine the posterior of the key parameters (plots are helpful!) telling me what you think they tell you.
+
+--> the weight at zero height (??) is about -32 kg.  
+--> for every cm increase, the weight increases about 0.5 kg, assuming the linear model is good.  
+--> there is a good deal of variation around the expected line since the standard deviation is almost 5 kg.  
+
+If you have not yet examined the potential relationship between the parameters $a$ and $b$, do so here and tell me what you conclude.
+
+--> There is a strong, negative correlation between slope and intercept. If the intercept is higher, the slope needs to be lower to "hit" the data, and vice versa. That is, these two parameters cannot be estimated independently. Knowing the value of one tells you about the value of the other.   
+
+
+## Revising our model structure
+
+Given the correlation we observed, let me proposal a mathematically equivalent model structure: center your $x$-axis on the mean of those $x$ values. That is, let $hc_i =  h_i - \bar{h}$ and use $hc_i$ as your predictor variable. 
+```{r}
+df$hc <- df$height - mean(df$height)
+summary(df$hc)
+```
+
+You may need to reconsider your priors. Do so and then fit the model with `quap()`. (You are welcome to repeat the fit with grid-approximation, too, if you like, but it's not necessary.)
+
+
+```{r}
+# examine priors
+x <- -85:40
+# parameters
+a <- rnorm(n=100, mean=50, sd=10)
+b <- rnorm(n=100, mean=0.25, sd=1/4)
+
+# plot y by x for each of the 100 parameter draws 
+plot(NULL, xlim = c(-85,40), ylim = c(-10, 100), 
+     xlab="difference in height from mean (cm)", ylab="weight (kg)")
+abline(h = 0)
+
+for(i in 1:100){
+  lines(x=x, y=a[i] + b[i]*x, col = rgb(0,0,1, alpha = 1/5))
+}
+
+# quap version
+m.cent <- quap(
+  alist(
+    weight ~ dnorm(mu, sigma),
+    mu <- a + b*hc,
+    a ~ dnorm(50, 10),
+    b ~ dnorm(0.25, 0.25),
+    sigma ~ dexp(1)
+  ), data=df
+)
+
+precis(m.cent)
+
+samples.cent <- extract.samples(m.cent)
+hist(samples.cent$a)
+hist(samples.cent$b)
+hist(samples.cent$sigma)
+
+plot(b ~ a, data = samples.cent, pch = 16, col = rgb(0,0,1, alpha = 1/10))
+```
+
+How did this change your results? In particular, what happened to the relationship between the parameters $a$ and $b$? Why? Similarly, how did the interpretation of the parameter $a$ change?
+
+--> the slope and sigma are virtually unchanged, but the intercept is now much higher, as expected.  
+--> the slope now tells us the expected weight for a person at the average height whereas before it was the weight of a person at zero height.   
+--> the correlation between a and b is gone. A change in the intercept no longer requires a change in the slope to "hit" the data.   
+
+## Comparing the model expectation to the data
+
+So far we have not compared the model-expected relationship between weight and height and the actual relationship observed in the data. Let's do so now.
+
+```{r}
+plot(weight ~ hc, data=df, type = "n")
+for(i in 1:1000){
+  curve(samples.cent$a[i] + samples.cent$b[i]*x, 
+        col = rgb(0,0,1, alpha = 1/50), 
+        add = TRUE)
+}
+points(weight ~ hc, data=df)
+
+# Alternative using link function
+newdat <- link(fit=m.cent, 
+               data = data.frame(hc = -85:40), 
+               n=1000)
+
+plot(weight ~ hc, data=df, type = "n")
+for(i in 1:1000){
+  lines(x=-85:40, y=newdat[i,], 
+        col = rgb(0,0,1, alpha = 1/50))
+}
+points(weight ~ hc, data=df)
+```
+
+How well does our model describe the general features of the data? 
+
+--> Poorly. There is a clear saturating curve in the data, but our expectation is a straight line. Thus, we underpredict height for low and very high heights and overpredict for most of the heights in the middle.  
+
+## An allometric linear model
+
+Suppose a colleague of yours who works on allometry glances at the practice problems just above. Your colleague exclaims, "That's silly. Every know that it’s only the logarithm of body weight that scales with height!" Let's take your colleague's advice and see what happens. 
+
+First, revise the model to accommodate a linear relationship between height and the log of weight.
+
+
+$$
+\begin{align}
+\log(y_i) & \sim \text{Normal}(\mu_i, \sigma) \\
+\mu_i & = \alpha + \beta  (x_i - \bar{x}) \\
+\alpha & \sim \text{Normal}(50,10) \\
+\beta & \sim \text{Normal}(0.25, 0.25) \\
+\sigma & \sim \text{Exponential}(1)
+\end{align}
+$$
+
+
+Second, be sure to examine the consequence of your priors, adjusting them as needed. 
+```{r}
+x <- -85:40
+xbar <- 138
+
+# parameters
+a <- rnorm(n=100, mean=2.5, sd=1/10)
+b <- rnorm(n=100, mean=1/50, sd=1/200)
+
+# plot y by x for each of the 100 parameter draws 
+plot(NULL, xlim = c(-85, 40), ylim = c(1, 4), 
+     xlab="height (difference from mean; cm)", ylab="weight log(kg)")
+abline(h=0)
+
+for(i in 1:100){
+  lines(x=x-xbar, y=a[i] + b[i]*(x-xbar), col = rgb(0,0,1, alpha = 1/5))
+}
+```
+
+
+Third, fit the model to the data. Let's use `quap()` again. 
+
+
+```{r}
+# quap version
+xbar <- mean(df$height)
+df$hc <- df$height -  xbar
+df$lwt <- log(df$weight)
+
+m1 <- quap(
+  alist(
+    lwt ~ dnorm(mu, sigma),
+    mu <- a + b*hc,
+    a ~ dnorm(2.5, 1/10),
+    b ~ dnorm(1/50, 1/200),
+    sigma ~ dexp(1)
+  ), data=df
+)
+
+precis(m1)
+
+samples <- extract.samples(m1)
+```
+
+Fourth, interpret the posterior of the parameters and interpret them as well as you can.
+
+```{r}
+hist(samples$a)
+hist(samples$b)
+hist(samples$sigma)
+
+plot(a ~ b, data = samples, col=rgb(0,0,1, alpha=1/20))
+```
+
+--> Again, a tight mean weight around exp(3.44) = 31 kg at the average height.   
+--> The slope of around 0.021 implies we get a exp(0.021) = 1.021-fold increase in mass (kg) with every 1 cm increase in height.   
+
+
+Fifth, graph the relationship between weight and height predicted by this new model, as well as the actual observations. 
+
+```{r}
+# linear on the log-x scale
+plot(lwt ~ hc, data=df)
+
+for(i in 1:1000){
+  curve(samples$a[i] + samples$b[i]*x, 
+        col = rgb(0,0,1, alpha = 1/50), 
+        add = TRUE)
+}
+curve(mean(samples$a) + mean(samples$b)*x, col = "red", add = TRUE)
+
+# Alternative using link function
+hcs <- seq(-85, 42, length.out = 100)
+newdat <- link(fit=m1, 
+               data = data.frame(hc = hcs), 
+               n=1000)
+
+plot(lwt ~ hc, data=df)
+for(i in 1:1000){
+  lines(x=hcs, y=newdat[i,], 
+        col = rgb(0,0,1, alpha = 1/50))
+}
+curve(mean(samples$a) + mean(samples$b)*x, col = "red", add = TRUE)
+
+
+# plot on the weight scale
+plot(weight ~ height, data=df)
+for(i in 1:1000){
+  lines(x=hcs+xbar, y=exp(newdat[i,]), 
+        col = rgb(0,0,1, alpha = 1/50))
+}
+curve(exp(mean(samples$a) + mean(samples$b)*(x-xbar)), col = "red", add = TRUE)
+```
+
+
+Sixth, what can we conclude from this analysis?
+
+--> it seems the colleague was right, log(weight) is linearly related to the height (or weight is exponentially related to height). However, a close look at the line and the data suggests it's not a perfect description of the data.   
+--> There is no mechanism to this graph, or not really. But it does capture the general features of the data pretty well.   
