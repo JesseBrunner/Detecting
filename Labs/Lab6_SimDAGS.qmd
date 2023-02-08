@@ -108,7 +108,7 @@ b_TV <- 0.5 # higher temps increase virus replication
 b_TE <- -0.75 # higher temps lead to less energy available
 b_FE <- 0.75 # Food has a positive effect on energy available
 b_EC <- 0.75 # A pretty good predictor of body condition
-b_EV <- 1 # strong effect of energetic reserves
+b_EV <- -1 # strong, negatve effect of energetic reserves
 ```
 We can certainly change these---indeed, it might be interesting to see how the strength of the relationships might overcome any particular problems we have with using wrong models. For now, though, let's just run with it. 
 
@@ -132,7 +132,7 @@ summary(expt)
 lattice::splom(expt[,-1])
 ```
 
-It's interesting to see that there is a clear, positive correlation between body condition and virus titers. I could imagine I might have seen these data and been very tempted to include body condition as a predictor of virus titers. Let's try fitting two different models:
+It's interesting to see that there is a clear, negative correlation between body condition and virus titers. I could imagine I might have seen these data and been very tempted to include body condition as a predictor of virus titers. Let's try fitting two different models:
 
 1. `Virus ~ Food + Temp`
 2. `Virus ~ Food + Temp + Condition`
