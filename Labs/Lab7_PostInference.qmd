@@ -1,0 +1,556 @@
+---
+title: "Lab 7: Residuals, counterfactuals, and categorical variables"
+author: "Jesse Brunner"
+date: "`r Sys.Date()`"
+format: 
+  html:
+    toc: true
+    embed-resources: true
+    code-fold: false
+execute:
+  include: true
+---
+
+It turns out that fitting Bayesian models to data, or at least simple linear models, is not super hard^[After thinking about model structure and priors.]. However, getting what you want out of them can be tricky. It is not so much that the mechanics of it are difficult---we get samples from the posterior and then do stuff with them. Rather, it can be hard to think through what you want to show or evaluate or whatever can be challenging. Sometimes it is helpful to have some examples of Things That Might Be Done with a model to crib from. Today, we'll work on:
+
+* Predictor residual plots 
+* Posterior prediction plots (again)
+* Counterfactual (what-if) plots
+
+As a bonus round, I'd also like to explore why index variables are a better way to go than indicator variables in regressions with categorical variables. 
+
+# Revisiting our viral titers example
+
+As a refresher, let's imagine we went out and measured the temperature and food availability in a bunch of ponds, then collected a group of tadpoles from each pond, and exposed them to a virus and measured the _average_ viral concentration in the tadpoles after X days. We expect that temperature has a direct effect on viral replication, but also affects the energy reserves in the tadpoles directly (warmer = faster metabolism) and indirectly through its influence on food availability (more food = more energetic reserves). We think more energy reserves, which we cannot measure directly, mean a stronger anti-viral response. (Notice that I'm ignoring the body condition part of things we considered last week.)
+
+The DAG looks like this:
+
+```{r}
+#| message: false
+library(dagitty)
+library(rethinking)
+
+virus <- dagitty("dag{
+Temp -> Food -> En -> Virus
+En <- Temp -> Virus
+
+En [unobserved]
+}")
+coordinates(virus) <- list(
+  x=c(Food=1, En=4.5,  Temp=1,  Virus = 9),
+  y=c(Food=1, En=4.5,  Temp=9,  Virus = 9))
+drawdag(virus)
+```
+
+```{r}
+dev.off() # remember this trick?
+
+```
+
+We'll want to work with some (fake) data, too. So let's simulate data from this DAG. We will use the same basic structure and estimated effect sizes as last time. Recall that we're working on standardized predictor variables so that their mean is zero and +/- 1 refers to plus or minus one standard deviation. 
+
+```{r}
+# Virus is changing in terms of orders of magnitude (i.e., log10(virus))
+b_TV <- 0.5 # higher temps increase virus replication 
+b_TE <- -0.75 # higher temps lead to less energy available
+b_FE <- 0.75 # Food has a positive effect on energy available
+b_EC <- 0.75 # A pretty good predictor of body condition
+b_EV <- -1 # strong, negative effect of energetic reserves
+b_TF <- 0.5
+```
+
+```{r}
+# Simulate data for 30 ponds
+n = 30
+
+# simulate pond temperatures
+obs <- data.frame(Temp = rnorm(n=n, mean=0, sd=1))
+#simulate food availability given temperatures
+obs$Food <- rnorm(n=n, mean = obs$Temp*b_TF, sd = 0.5)
+#simulate (unobserved) energy reserves
+obs$En <- rnorm(n=n, 
+                mean = b_TE*obs$Temp + b_FE*obs$Food, 
+                sd = 0.25)
+# simulate viral titers
+obs$Virus <- rnorm(n=n, 
+                   mean = 3 + b_EV*obs$En + b_TV*obs$Temp, 
+                   sd = 0.25)
+summary(obs)
+lattice::splom(obs)
+```
+
+So that is our data set (though we would not "see" `En`).
+
+# Visualizing the influence of Food or Temperature on virus 
+
+
+You may recall that if we wanted to estimate the total effect of food on virus titers we would want to condition on temperature. 
+
+```{r}
+adjustmentSets(virus, 
+               exposure = "Food", 
+               outcome = "Virus",
+               effect = "total", type = "all")
+```
+
+Let's fit this model.
+
+```{r}
+mFT <- quap(
+  alist(
+    Virus ~ dnorm(mu, sigma), 
+    mu <- a + bT*Temp + bF*Food, 
+    # priors
+    a ~ dnorm(3, 3), 
+    bT ~ dnorm(0, 1), 
+    bF ~ dnorm(0, 1), 
+    sigma ~ dexp(1)
+  ), data = obs
+)
+
+precis(mFT)
+```
+
+This suggests that food has a moderately strong, negative effect on viral titers; about 3/4ths of an order of magnitude with a one-standard deviation change in food availability. But do we really understand what this means? Let's try one of these awkwardly named "Predictor residual plots" visualize the relationship between what viral titers and the left-over influence of food, after accounting for (conditioning on) temperature. 
+
+## Predictor residual plots
+
+We're going to follow McElreath's recipe to create figures like those on the bottom panels of Figure 5.4.
+
+First, model the relationship between temperature and food. 
+```{r}
+mF_T <- quap(
+  alist(
+    Food ~ dnorm(mu, sigma), 
+    mu <- a + bT*Temp, 
+    # priors
+    a ~ dnorm(3, 3), 
+    bT ~ dnorm(0, 1), 
+    sigma ~ dexp(1)
+  ), data = obs
+)
+
+precis(mF_T)
+```
+
+Second, find the left over variation in food after accounting for the (predicted) effect of temperature. That is, calculate the residuals.
+```{r}
+# get predictions for actual observation of Food for many draws from posterior
+# then calculate average across these draws to get average prediction
+food_preds <- apply(X=link(mF_T), 
+                    MARGIN = 2,
+                    FUN = mean)
+# then find difference between average prediction and actual observations
+food_resids <- obs$Food - food_preds
+```
+It can be hard to think through what we're actually working with. Let's plot the actual (fake) observations of food availability against the predictive values. If we perfectly predicted each value, the points would fall on the one-to-one line. Instead, there are differences between what we predicted and what was (fake) observed, which are represented by the vertical line segments we add to this figure. Those line segments are essentially what `food_resides` represents.
+```{r}
+plot(x=food_preds, y=obs$Food)
+abline(a=0, b=1) # one-to-one line
+# add little line segments
+segments(x0 = food_preds, x1 = food_preds, 
+         y0 = food_preds, y1 = obs$Food)
+```
+
+Third, plot the (fake) observations of viral titers against these residuals of food availability (line segments) to see the relationship between food and viral titers after accounting for the effect of temperature.
+```{r}
+plot(x=food_resids, y=obs$Virus)
+abline(v=0, lty=2)
+```
+
+OK... it's hard to see patterns in this. Let's fit and add a regression line to this. This is just a normal regression, only now we're using `food_resids` as our predictor of viral titers (`Virus`).
+```{r}
+# put food_resids in our data frame
+obs$FoodResids <- food_resids
+
+# Fit a model predicting virus titers with food residuals
+mV_F_T <- quap(
+  alist(
+    Virus ~ dnorm(mu, sigma), 
+    mu <- a + bFR*FoodResids, 
+    # priors
+    a ~ dnorm(3, 3), 
+    bFR ~ dnorm(0, 1), 
+    sigma ~ dexp(1)
+  ), data = obs
+)
+
+
+# Load in our code to find predicted values and intervals for those predictions
+genPreds <- function(df, model, n=1e4, lo=0.055, hi=0.945){
+  # use link to generate preds
+  preds <- rethinking::link(fit=model, data=df, n=n)
+  # find average across preds for each column
+  df$preds_mean <- apply(X=preds, MARGIN=2, FUN = mean)
+  # find lower CI and add to df
+  df$preds_lo <- apply(X=preds, MARGIN=2, FUN = quantile, prob=lo)
+  # find upper CI and add to df
+  df$preds_hi <- apply(X=preds, MARGIN=2, FUN = quantile, prob=hi)
+  # return the data frame
+  return(df) 
+}
+
+
+# find predicted values and cute interval over a range of FoodResids values
+mus <- genPreds(df = data.frame(FoodResids = seq(min(food_resids), 
+                                                 max(food_resids), length.out = 100)
+                                ), 
+                model = mV_F_T,
+                n=1e3
+                )
+
+plot(x=food_resids, y=obs$Virus)
+abline(v=0, lty=2)
+# add these to the plot
+lines(x=mus$FoodResids, y=mus$preds_mean)
+lines(x=mus$FoodResids, y=mus$preds_lo, lty=3)
+lines(x=mus$FoodResids, y=mus$preds_hi, lty=3)
+```
+
+So this suggests that there is a moderate, negative relationships between food, after accounting for temperature, and virus titers. 
+
+Notice that this plot suggests large amounts of deviation in virus titers from the prediction based just on food residuals. That is because while we accounted for the effect of temperature on food (or really, the association between them... there is no causal path in our regressions, right?), we didn't account for the effect of temperature on _virus_ titers. 
+
+Honestly, I've never come across this precise form of residual plot and googling didn't help much^[All of the references I found were to McElreath's example!]. Much more often you might come across a partial residual plot. While these aren't in the book, I'll show you how to do them.
+
+
+## Partial residual plots
+
+In essence, the first part of the process is the same. We need to get the residuals of food after accounting for temperature. Having already done this, we'll skip to the next step: find the residuals of virus titers after accounting for temperature. Again, this is simple:
+```{r}
+mT <- quap(
+  alist(
+    Virus ~ dnorm(mu, sigma), 
+    mu <- a + bT*Temp, 
+    # priors
+    a ~ dnorm(3, 3), 
+    bT ~ dnorm(0, 1), 
+    sigma ~ dexp(1)
+  ), data = obs
+)
+# Get predictions of virus based on temperature
+virus_preds_Temp <- apply(X=link(mT), 
+                    MARGIN = 2,
+                    FUN = mean)
+# calculate residual differences between average prediction and observations
+virus_resids_Temp <- obs$Virus - virus_preds_Temp
+```
+Once we have those residuals, we can plot them. 
+```{r}
+# add virus residuals to the data frame
+obs$VirusResidsTemp <- virus_resids_Temp
+
+plot(VirusResidsTemp ~ FoodResids, data=obs)
+abline(v=0, lty=2)
+```
+Notice that the positions of points along the x-axis haven't changed, but their y-axis positions have. That's because we're now plotting virus residuals, rather than raw virus titers. 
+
+Again, it can help to show a best-fit linear regression to illustrate the pattern in the relationship between food residuals and virus residuals.
+```{r}
+# fit a model predicting virus residuals based on food residuals
+mVr_F_T <- quap(
+  alist(
+    VirusResidsTemp ~ dnorm(mu, sigma), 
+    mu <- a + bFR*FoodResids, 
+    # priors
+    a ~ dnorm(3, 3), 
+    bFR ~ dnorm(0, 1), 
+    sigma ~ dexp(1)
+  ), data = obs
+)
+
+# get predicted relationship and cute intervals
+#    same as above, just changing models
+mus <- genPreds(df = data.frame(FoodResids = seq(min(food_resids), 
+                                                 max(food_resids), length.out = 100)
+                                ), 
+                model = mVr_F_T,
+                n=1e3
+                )
+
+plot(x=food_resids, y=obs$VirusResidsTemp)
+abline(v=0, lty=2)
+# add these to the plot
+lines(x=mus$FoodResids, y=mus$preds_mean)
+lines(x=mus$FoodResids, y=mus$preds_lo, lty=3)
+lines(x=mus$FoodResids, y=mus$preds_hi, lty=3)
+
+```
+
+In this case, the effect of food on virus after accounting for the influence of temperature seems more compelling. This not simply because the points are closer to the predicted line. The predicted line, itself, has changed. 
+```{r}
+plot(coeftab(mFT, # the original model suggested by the DAG 
+             mV_F_T, # the model with virus against food residuals
+             mVr_F_T), # the model of virus residuals against food residuals
+    pars = c("bF", "bFR")
+)
+```
+
+See that the estimated effect from the predictor residual plot (`mV_F_T`) is estimated with very little precision (and, depending on the simulated data set, some some bias). However, the estimated effect from the partial residual plot (`mVr_F_T`) is pretty much the same as the `mFT` model that our DAG suggests we should use to estimate the total effect of food on virus titers. This is not a coincidence, but rather by design. 
+
+The point is not that one is better than the other---they simply show different things---but rather that you can do all sorts of things with your model(s) to illustrate different relationships. Use the one that makes the most sense given what you are trying to show. 
+
+::: {.callout-tip}
+## Your turn!
+We have created two ways of looking at the effect of food on virus titers (raw or residual) after conditioning on temperature. Your task is to choose either the predictor residual plot or the posterior prediction plot to illustrate the effect of temperature on virus titers after conditioning on food. 
+:::
+
+```{r}
+## predictor residual plot
+
+# Find the effect of (or association between) food on temperature
+
+
+# calculate residuals of temperature after accounting for food
+
+
+
+# fit a model of Virus by temperature residuals
+
+
+# and get predicted relationships and cute interval
+
+# plot Virus against temperature residuals and add model expectations
+
+```
+
+```{r}
+## partial residual plot
+
+# Find the effect of (or association between) food on temperature
+
+
+# calculate residuals of temperature after accounting for food
+
+# Find the effect of food on virus
+
+
+# Get predictions of virus based on food availability
+
+
+# calculate residual differences between average prediction and observations
+
+
+# Construct a model of virus residuals against temperature residuals 
+#   to describe the pattern in points we are about to plot
+
+
+# get predicted relationship and cute intervals
+#    between virus residuals and food residuals
+
+
+# plot Virus residuals against temperature residuals and add model expectations
+
+```
+
+
+
+# Visualizing how well our model predicts our observations
+
+Often what we want to do is see how well our model explains the patterns in our actual observations, and whether our observations would be expected by our model, in general. We've done this several times now with both univariate and multivariate models (see the previous two labs). Let's do it one more time in a slightly different way. 
+
+## Posterior prediction plots
+
+Usually we've plotted our responses against one or more predictor variables and then plotted the expected or mean response and the range of observations or data our model expects. Now let's simply plot the predicted against the observed^[The reverse usually makes more sense to me, with predicted values on the x-axis and observed values on the y-axis, but I seem to be in the minority...]. We can use our handy functions, `genPreds()`, which we've already loaded, above, and `genPPD()`, which we'll load now. 
+```{r}
+genPPD <- function(df, model, n=1e4, lo=0.055, hi=0.945){
+  # use sim to generate predicted observation
+  obs <- rethinking::sim(fit=model, data=df, n=n)
+  # find lower quantile of predicted observations for each column
+  df$PPD_lo <- apply(X=obs, MARGIN=2, FUN = quantile, prob=lo)
+  # find upper quantile of predicted observations for each column
+  df$PPD_hi <- apply(X=obs, MARGIN=2, FUN = quantile, prob=hi)
+  # return df
+  return(df)
+}
+```
+
+We'll do this for the `mFT` model where we're looking at how well predictions from our model with both food and temperature correspond to actual observations. 
+```{r}
+ppp <- genPreds(df = obs, 
+                model = mFT, 
+                n=1e3)
+ppp <- genPPD(df = ppp, 
+                model = mFT, 
+                n=1e3)
+
+
+plot(x=ppp$Virus, y=ppp$preds_mean)
+segments(x0=ppp$Virus, y0=ppp$PPD_lo, y1=ppp$PPD_hi)
+abline(a=0, b=1, lty=2)
+```
+
+It appears that we are doing pretty well at explaining the general pattern in virus titers. There are some observations that are under or over predicted, but that just happens^[Again, it can be useful to simulate data from a process that _should_ be well-predicted by the model since it corresponds perfectly to the generative model just to see what level of noise or variation to expect.]
+
+That was easy!
+
+# Visualizing what-if scenarios
+
+With experiments we can manipulate one variable without changing others that might be correlated. For instance, in our example with viral titers, we might manipulate food and temperature independently of each other (and we did, in our first example last week). In observational studies we cannot do that. But we can use our model to see what would happen if we _could_ manipulate this or that, or more broadly, what might happen in particular scenarios of interest. 
+
+To do these what-if sorts of calculations---and they are simply calculations!---we need a model that embodies the full DAG (i.e., all of the variables and how they relate). That is, our calculations are a mathematical version of, "we think the system works this way and variables relate to each other in these ways, and thus if we were to do _this_ thing then we would expect _that_ resposne."
+
+Fitting this larger model, what McElreath sometimes calls a "full luxury Bayesian model", is not hard, but it might feel weird. First, we need to get rid of our unmeasured `En` variable^[I'm pretty sure that we could deal with this using MCMC methods, since they can handle missing data, but we'd still run into some parameter identifiability issues because we have parameters that enter the model as a product.]. So we can simplify our DAG as:
+
+```{r}
+virus2 <- dagitty("dag{
+Temp -> Food -> Virus <- Temp
+}")
+coordinates(virus2) <- list(
+  x=c(Food=1,  Temp=1,  Virus = 9),
+  y=c(Food=1,  Temp=9,  Virus = 9))
+drawdag(virus2)
+```
+
+```{r}
+dev.off()
+```
+
+Note that in this DAG we are lumping together the direct influence of Temperature on virus (`Temp -> Virus`) and the indirect path through energy (`Temp -> (En) -> Virus`). 
+
+Given this simpler DAG without the unobserved variable, we can then model both `Virus` and `Food` in the same model. We'll have two likelihoods and two linear models, but otherwise, this is as you might expect.
+
+```{r}
+m_full <- quap(
+  alist(
+    # T -> V <-  F
+    Virus ~ dnorm(mu, sigma), 
+    mu <- a + bT*Temp + bF*Food, 
+    
+    # T -> F
+    Food ~ dnorm(mu_F, sigma_F), 
+    mu_F <- aF + bTF*Temp,
+    
+    # priors for Virus
+    sigma ~ dexp(1),
+    a ~ dnorm(3, 1), 
+    bT ~ dnorm(0, 1),
+    bF ~ dnorm(0, 1),
+
+    # priors for Food
+    sigma_F ~ dexp(1),
+    aF ~ dnorm(0, 1), 
+    bTF ~ dnorm(0, 1)
+  ), data = obs
+)
+
+precis(m_full)
+```
+
+Now, before we proceed, let's convince ourselves that we did this right and that our parameters have estimated what we think they should. This is easy since we know what we simulated from.  
+
+First, we simulated the effect of temperature on food with the parameter `b_TV` = `r b_TV`. Look back at the precise output and see if we hit the mark.
+
+Second, we simulated the effect of food on energy with parameter `b_FE` = `r b_FE` and the effect of energy on virus with parameter `bEV` = `r b_EV`. The entire direct effect of food on virus titers (through Energy) was thus:
+```{r}
+b_FE * b_EV
+```
+How does this compare with our estimate from the full model? Again, look above and see.
+
+Lastly, the direct effect of temperature on virus (through the direct path and the path involving energy) was simulated with these values:
+```{r}
+b_TV + b_TE*b_EV # direct and indirect through energy
+```
+How did we do?
+
+## Counterfactual plots
+Now, with this model we can examine the effect of, say, changing food availability if we held temperature constant, as we might in an experiment. 
+
+```{r}
+df_cf <- data.frame(Food = seq(from=-2, to=2, length.out=50),
+                    Temp = 0)
+
+preds <- link(m_full, data = df_cf)
+
+#see what is in preds
+str(preds)
+# just want mu, the expected value for Virus
+
+df_cf$mu_mean <- apply(X=preds$mu, 
+                       MARGIN = 2, 
+                       FUN = mean)
+df_cf$mu_lo <- apply(X=preds$mu, 
+                       MARGIN = 2, 
+                       FUN = quantile, prob = 0.055)
+df_cf$mu_hi <- apply(X=preds$mu, 
+                       MARGIN = 2, 
+                       FUN = quantile, prob = 0.945)
+plot(mu_mean ~ Food, data = df_cf, type = "l")
+lines(x=df_cf$Food, y=df_cf$mu_lo, lty = 2)
+lines(x=df_cf$Food, y=df_cf$mu_hi, lty = 2)
+```
+
+So this gives us our counterfactual effect of food, by itself, on virus titers. 
+
+Note that McElreath simulated observations, using `sim()`, whereas I was just simulating expected relationships. To follow his footsteps, simply use `sim()` in place of `link()` in my code. 
+
+
+::: {.callout-tip}
+## Your turn!
+We still need to consider the counterfactual effect of temperature on virus titers if we could manipulate that independently of food availability. So that is your task. Just follow my example and I think you'll be OK. (Question: do you need to change the model before simulating these counterfactuals?)
+:::
+
+```{r}
+# Make a data frame over which to simulate
+
+# get predicted relationships across the x-axis values
+
+# calculate means and interval for those predicted relationsips
+
+
+# plot relationships across x-axis values
+
+```
+
+
+# Bonus round! Why we use indexes instead of indicator variables
+
+We have heard McElreath caution us against using indicator variables, but let's demonstrate why indicator variables cause problems (besides just being annoying to deal with). Let's say we were doing some study that involved three species: _Lithobates sylvaticus_, _L. pipiens_, and _L. catesbeianus_. We think that their species identity will influence whatever it is we are studying, but not based on some easily measured quality of them (e.g., size or color or whatever). That is, we think they should be different, but treated as categories. 
+
+A common way to deal with this in a regression framework would be to use indicator variables:
+$$
+\mu_i = \alpha + \beta_{Lp}\times Lp_i + \beta_{Lc} \times Lc_i
+$$
+where $Lp_i$ and $Lc_i$ are 1 if observation $i$ is that species and zero if not. Thus an _L. pipiens_ would have $Lp_i =1$ & $Lc_i = 0$ and would have a mean expectation of $\mu = \alpha + \beta_{Lp}$; an _L. catesbeianus_ would have $Lp_i=0$ & $Lc_i = 1$ and a mean expectation of $\mu = \alpha + \beta_{Lc}$; and an _L. sylvaticus_ would have $Lp_i=0$ & $Lc_i = 0$ and a mean expectation of $\mu = \alpha$. 
+
+The index variable approach would be to have a variable, say $Spp$, that had a 1 for _L. sylvaticus_, a 2 for _L. pipiens_, and a 3 for _L. catesbeianus_ (or some other ordering... it doesn't matter). Then our model would look like this:
+$$
+\mu_i = \alpha[Spp_i]
+$$
+where $\alpha$ is a vector length three, each element of which corresponds to the average expectation of one of the three species. The vector or data column $Spp$ simply indexes so that the right value of $\alpha$ is pulled out for each observation, $i$. 
+
+This is an easier code to keep track of, especially when we have a lot of levels of the factor, but more importantly, it is easier to convey our understanding of our expectations prior to data. Let's assume that we think all three species should have a mean of, say, 5, with a standard deviation of 1, prior to considering the data. Let's see what this looks like in the index version of things:
+
+```{r}
+mu_spp1 <- rnorm(1e3, mean=5, sd=1)
+mu_spp2 <- rnorm(1e3, mean=5, sd=1)
+mu_spp3 <- rnorm(1e3, mean=5, sd=1)
+
+hist(mu_spp1, col = NULL, border = "black") 
+hist(mu_spp2, col = NULL, border = "red", add = T)
+hist(mu_spp3, col = NULL, border = "blue", add = T)
+```
+
+Easy-peasy! How could we do this with the indicator version of things?
+```{r}
+mu_Ls <- rnorm(1e3, mean=5, sd=1) # This is our baseline
+mu_Lp <- mu_Ls + rnorm(1e3, mean=0, sd=0.1) # Baseline plus beta_Lp
+mu_Lc <- mu_Ls + rnorm(1e3, mean=0, sd=0.1) # Baseline plus beta_Lc
+
+hist(mu_Ls, col = NULL, border = "black") 
+hist(mu_Lp, col = NULL, border = "red", add = T)
+hist(mu_Lc, col = NULL, border = "blue", add = T)
+```
+No problem, right? It looks sort of like the indexed version of things. But notice that I only did this by assuming that the difference between _L. sylvaticus_ and _L. pipiens_ is essentially zero, with a great deal of confidence (and similarly for _L. catesbeiansu_). 
+
+Let's visualize this by looking at the differences between _L. sylvaticus_ and _L. pipiens_ that our model expects prior to looking at the data.
+```{r}
+# indexed version
+hist(mu_spp1 - mu_spp2, col = NULL, border= "green", breaks = (-60:60)/10, ylim = c(0, 400))
+# indicator version
+hist(mu_Ls - mu_Lp, col = NULL, border = "purple", breaks = (-60:60)/10, add = TRUE)
+```
+
+The indexed version would not be surprised by differences of plus or minus two or even three, whereas the indicator version would be very surprised by anything more than a differences of plus or minus 1/10th. 
+
+Try seeing if you can get the indicator version to allow for both similar priors for each species as well as reasonably large differences in species means. I think you'll be struggling!^[There is a way to do this with two species, but the third still causes problems.] _This_ is why we use index versions of parameters for categorical variables in Bayesian models. 
