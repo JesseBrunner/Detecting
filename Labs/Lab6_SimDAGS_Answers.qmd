@@ -1,0 +1,554 @@
+---
+title: "Lab 6: Simulating data from a complex DAG"
+author: "Jesse Brunner"
+date: "`r Sys.Date()`"
+format: 
+  html:
+    toc: true
+    embed-resources: true
+    code-fold: false
+execute:
+  include: true
+---
+
+We've now gotten fairly comfortable simulating data. Let's use our tools, then, to explore the consequences of different causal structures. That is, let's simulate data from a known, but complex DAG and then see what happens when we include (=condition on) certain (sets of) variables in our analyses!
+
+# Example 1: Viral growth in an experiment
+
+Viruses are super interesting and, setting aside a whole bunch of complications like virology and immunology, pretty easy to think about. Let's imagine that we're interested in the influence of food availability and temperature on the resulting viral concentration or titer in some ectothermic hosts^[Amphibian larvae perhaps?]. Indeed, let's imagine that we conducted an experiment where we raised our hosts in low, mean, or hot conditions with low, mean, or high amounts of food. 
+
+We might think of food availability increasing the energy reserves the host has to mount an effective immune response with which to fight against the virus population growing within it. So food might indirectly, through its influence on energetic reserves, decrease viral titers. We might also imagine that temperature tends to increase the metabolism of the host, and thus reduces the energy reserves. Moreover, viral replication rates likely increase with temperature, so that temperature has a direct effect on viral titers^[Ignoring the temperature-dependence of the host's immune response.] 
+
+Unfortunately, we cannot measure energetic reserves directly, but we can measure things like body condition. For instance, we might use a ratio of weight to length of our host to indicated how fat a host is, presuming that individuals with more energetic reserves are heavier for their length. 
+
+This is how we might represent this causal story in the form of a DAG. 
+
+```{r}
+#| message: false
+library(dagitty)
+library(rethinking)
+
+virus <- dagitty("dag{
+Food -> En -> Virus
+En <- Temp -> Virus
+En -> Condition 
+
+En [unobserved]
+}")
+coordinates(virus) <- list(
+  x=c(Food=1, En=4.5, Condition=6, Temp=1, Virus = 9),
+  y=c(Food=1, En=4.5, Condition=2.5, Temp=9, Virus = 9))
+drawdag(virus)
+dev.off() # <--  drawdag() messes with the plotting canvas, so reset it
+```
+
+Now, if we had measured these variables (or set the values of food and temperature) and were interested in the effects of food or temperature on virus titers in hosts, what should we include or condition on in our model? Or, more to the point, would it be a good or bad idea to include body condition as a predictor? 
+
+Before proceeding, think about what you would do. 
+
+.  
+.  
+.  
+
+We have seen that we can use some functions in the `daggity` package to see what our DAG can tell us. Let's try some.
+```{r}
+impliedConditionalIndependencies(virus)
+```
+This tells us that if our DAG were correct then food and temperature should be independent. That's perhaps good to know, but since we designed the (fake) experiment, we knew this would be the case. So, not so useful in this case. Let's try the other function.
+```{r}
+adjustmentSets(virus, 
+               exposure = "Food", 
+               outcome = "Virus", 
+               effect = "total", 
+               type = "all")
+
+adjustmentSets(virus, 
+               exposure = "Temp", 
+               outcome = "Virus", 
+               effect = "total", 
+               type = "all")
+```
+That is more useful! We want to know what we need to condition on or adjust for to understand the total effect of food or temperature on virus and these tell us we don't need to condition on anything to do so. _Or_ we can condition on the other factor we manipulated. Either works. The default of this function is to return the simplest adjustment, which would just be the empty set, but sometimes there are advantages to using more adjustments in terms of precision of our estimates. 
+
+We'll come back to this in a second, but first let's consider, say, the direct effect of temperature on virus titers. We can ask this R function to sort that out for us, too!  
+```{r}
+adjustmentSets(virus, 
+               exposure = "Temp", 
+               outcome = "Virus", 
+               effect = "direct")
+```
+If you do this you won't see anything returned, not even the empty set (`{}`). This is because given this causal model there is no way to estimate the direct effect of temperature on virus titers. That is, there is no way to block the path from temperature to energy (`En`), which is unobserved, to virus titers. I think it might be nice if the function said something along those lines, but I guess silence is golden. 
+
+Below I'll ask you to try changing our DAG so that energy _is_ observed and see if either of these adjustment sets change. 
+
+# Simulating data from our DAG
+
+It's all well and good to know what we should do to estimate the total effect of temperature and food on viral titers if our DAG were correct, but let's see what might happen if we were just working with the data and not thinking in a DAG sort of way. That is, let's make up some data and see how our estimates of the effects of food or temperature change if we construct our model in different ways. 
+
+First thing we need to do is set out an experimental design. I'm going to assume we'll use three levels of food and three levels of temperature in a factorial design. We'll treat these as below the average (-1), at the average (0), and above the average (+1), which simplifies things quite a lot.  Let's also have n=10 observations per treatment combination. It turns out that `expand.grid()` can help us make up our data frame for the predictor variables pretty easily, provided we add an extra variable name for each replicate in a treatment.
+```{r}
+n <- 10 # number per treatment
+
+# Set up our experimental data
+Temp <- -1:1 # Think low, mean, and high
+Food <- -1:1
+Reps <- 1:n
+
+expt <- expand.grid(Reps=Reps, Food=Food, Temp=Temp)
+head(expt)
+precis(expt)
+```
+Cool, huh?
+
+Now we need to consider the effect sizes. Each of those arrows in our DAG needs a model linking cause to effect. We could imagine much more complex relationships, but for now let's just assume everything is basically linear. We'll also consider that these effects refer to changes from mean conditions.
+```{r}
+# let's think of effects sizes in terms of changes from median conditions
+# Virus is changing in terms of orders of magnitude (i.e., log10(virus))
+b_TV <- 0.5 # higher temps increase virus replication 
+b_TE <- -0.75 # higher temps lead to less energy available
+b_FE <- 0.75 # Food has a positive effect on energy available
+b_EC <- 0.75 # A pretty good predictor of body condition
+b_EV <- -1 # strong, negative effect of energetic reserves
+```
+We can certainly change these---indeed, it might be interesting to see how the strength of the relationships might overcome any particular problems we have with using wrong models. For now, though, let's just run with it. 
+
+Lastly, we need to simulate data given these effect sizes and treatments! With one exception I'm going to assume everything is normally distributed around the mean expectation with a standard deviation of 0.25. Again, we can change things later. The one exception is that I will center the amount of virus in the average conditions at 3 (1000 virus particles). This is just to tickle my empirical brain; it shouldn't affect our results at all. 
+```{r}
+# Have to first generate (unobserved) energy reserves b/c they cause other things
+expt$En <- rnorm(n=nrow(expt), 
+               mean = b_TE*expt$Temp + b_FE*expt$Food, 
+               sd = 0.25)
+
+# Then we can generate the observations that are caused by En
+expt$Condition <- rnorm(n=nrow(expt), 
+                      mean= b_EC*expt$En, 
+                      sd = 0.25)
+# for virus I'll assume 10^3 virus paricles before including any other influences
+expt$Virus <- rnorm(n=nrow(expt), 
+                      mean= 3 + b_EV*expt$En + b_TV*expt$Temp, 
+                      sd = 0.25)
+summary(expt)
+# Finally, let's visualize our fake data (everything but the Reps column)
+lattice::splom(expt[,-1])
+```
+
+It's interesting to see that there is a clear, negative correlation between body condition and virus titers. I could imagine I might have seen these data and been very tempted to include body condition as a predictor of virus titers. Let's try fitting two different models:
+
+1. `Virus ~ Food + Temp`
+2. `Virus ~ Food + Temp + Condition`
+
+I'm going to use `quap()` and fairly vague (and unconsidered) priors. 
+```{r}
+# correct model for total effect of food
+mF <- quap(
+  alist(
+    Virus ~ dnorm(mu, sigma), 
+    mu <- a + bf*Food,
+    # priors
+    a ~ dnorm(3, 3), 
+    bf ~ dnorm(0, 1), 
+    sigma ~ dexp(1)
+  ), data = expt
+)
+# correct model for total effect of temperature
+mT <- quap(
+  alist(
+    Virus ~ dnorm(mu, sigma), 
+    mu <- a + bt*Temp,
+    # priors
+    a ~ dnorm(3, 3), 
+    bt ~ dnorm(0, 1), 
+    sigma ~ dexp(1)
+  ), data = expt
+)
+# both food and temperature
+mFT <- quap(
+  alist(
+    Virus ~ dnorm(mu, sigma), 
+    mu <- a + bf*Food + bt*Temp,
+    # priors
+    a ~ dnorm(3, 3), 
+    bf ~ dnorm(0, 1), 
+    bt ~ dnorm(0, 1), 
+    sigma ~ dexp(1)
+  ), data = expt
+)
+# everything in!
+mFTC <- quap(
+  alist(
+    Virus ~ dnorm(mu, sigma), 
+    mu <- a + bf*Food + bt*Temp + bc*Condition,
+    # priors
+    a ~ dnorm(3, 3), 
+    bf ~ dnorm(0, 1), 
+    bt ~ dnorm(0, 1), 
+    bc ~ dnorm(0, 1), 
+    sigma ~ dexp(1)
+  ), data = expt
+)
+```
+
+We should, of course, do more than simply look at coefficients in a real model, but for now this is informative.
+```{r}
+precis(mF)
+precis(mT)
+```
+A graph can be helpful. This is command is useful:
+```{r}
+plot(coeftab(mF, mT, mFT, mFTC), par = c("bf", "bt"))
+```
+
+(If that doesn't work, try the following...)
+```{r}
+#| eval: false
+coeftab_plot(coeftab(mF, mT, mFT, mFTC), pars = c("bf", "bt"))
+```
+
+It sure seems like when we include body condition we erode the estimates of food and temperature on viral titers. (If we include both food and temperature we get the same average effect sizes, but estimated with a bit more precision! Who knew?). This is probably because much of the effect of food and temperature works through energy reserves (En), and we're conditioning on its descendant, body condition (Condition). So we're already accounting for much of this path of influence, leaving much less for the food and temperature variables to explain. Which model we run would strongly influence our results! But notice that there are no particular signs that this is not the "right" model for our purposes! It fit just fine and it predicts the data just fine. 
+
+In fact, let's see what the models tell us viral titers should be. We created functions to facilitate this last week. Let's load them back in.
+```{r}
+genPreds <- function(df, model, n=1e4, lo=0.055, hi=0.945){
+  # use link to generate preds
+  preds <- rethinking::link(fit=model, data=df, n=n)
+  # find average across preds for each column
+  df$preds_mean <- apply(X=preds, MARGIN=2, FUN = mean)
+  # find lower CI and add to df
+  df$preds_lo <- apply(X=preds, MARGIN=2, FUN = quantile, prob=lo)
+  # find upper CI and add to df
+  df$preds_hi <- apply(X=preds, MARGIN=2, FUN = quantile, prob=hi)
+  # return the data frame
+  return(df) 
+}
+
+genPPD <- function(df, model, n=1e4, lo=0.055, hi=0.945){
+  # use sim to generate predicted observation
+  obs <- rethinking::sim(fit=model, data=df, n=n)
+  # find lower quantile of predicted observations for each column
+  df$PPD_lo <- apply(X=obs, MARGIN=2, FUN = quantile, prob=lo)
+  # find upper quantile of predicted observations for each column
+  df$PPD_hi <- apply(X=obs, MARGIN=2, FUN = quantile, prob=hi)
+  # return df
+  return(df)
+}
+```
+
+Now we can use these to generate mean predicted values for each combination of treatment values as well as the posterior predicted intervals. The hard part is honestly getting things to plot somewhat nicely
+Model 1
+```{r}
+dfpreds <- genPreds(df = expt[expt$Reps==1,], 
+                    model = mFT, 
+                    n = 1000)
+dfpreds <- genPPD(df = dfpreds, 
+                  model = mFT, 
+                  n = 1000)
+
+plot(Virus ~ I(Food+Temp/10), # <- a trick to get them side-by-side
+     col = c("blue","green","red")[Temp + 2], 
+     xlab = "Food",
+     ylim = c(1, 6),
+     data = expt)
+# means
+points(x=I(dfpreds$Food+dfpreds$Temp/10), 
+       y=dfpreds$preds_mean, 
+       col = c("blue","green","red")[dfpreds$Temp + 2],
+       pch = 4, cex = 2)
+# lower PPD
+points(x=I(dfpreds$Food+dfpreds$Temp/10), 
+       y=dfpreds$PPD_lo, 
+       col = c("blue","green","red")[dfpreds$Temp + 2],
+       pch = "-", cex = 2)
+# upper PPD
+points(x=I(dfpreds$Food+dfpreds$Temp/10), 
+       y=dfpreds$PPD_hi, 
+       col = c("blue","green","red")[dfpreds$Temp + 2],
+       pch = "-", cex = 2)
+```
+
+Model 2
+```{r}
+dfpreds <- genPreds(df = expt[expt$Reps==1,], 
+                    model = mFTC, 
+                    n = 1000)
+dfpreds <- genPPD(df = dfpreds, 
+                  model = mFTC, 
+                  n = 1000)
+
+plot(Virus ~ I(Food+Temp/10), # <- a trick to get them side-by-side
+     col = c("blue","green","red")[Temp + 2], 
+     xlab = "Food",
+     ylim = c(1, 6),
+     data = expt)
+# means
+points(x=I(dfpreds$Food+dfpreds$Temp/10), 
+       y=dfpreds$preds_mean, 
+       col = c("blue","green","red")[dfpreds$Temp + 2],
+       pch = 4, cex = 2)
+# lower PPD
+points(x=I(dfpreds$Food+dfpreds$Temp/10), 
+       y=dfpreds$PPD_lo, 
+       col = c("blue","green","red")[dfpreds$Temp + 2],
+       pch = "-", cex = 2)
+# upper PPD
+points(x=I(dfpreds$Food+dfpreds$Temp/10), 
+       y=dfpreds$PPD_hi, 
+       col = c("blue","green","red")[dfpreds$Temp + 2],
+       pch = "-", cex = 2)
+```
+
+There are some _slight_ difference in the predictions, but not much! both capture the general features of the data and have PPD intervals that capture most of the observations, as we'd expect. In other words, they are both fine at prediction. It's just that one of them says that temperature as a small, but defined negative effect on viral titers and the other says there isn't really much if any effect (and similarly, the effect of food is reduced). There is no way to _know_, from the model outputs, that you have it right or wrong!
+
+
+::: {.callout-tip}
+## Your turn!
+Let's go one step further... Imagine that you _could_ observed energy reserves directly. First modify the DAG so that `En` is now observed and see if or how the adjustment sets change for the total and direct effects of temperature and food on viral titers. Second, include the term `En` in your model (we've already simulated it, right?) and see how the estimates change for parameters `bf` and `bt`. What effect does adding `En` to the rest of the variables (`Food`, `Temp`, and `Condition`) on our estimates of the coefficients for food and temperature?
+:::
+
+```{r}
+virus2 <- dagitty("dag{
+Food -> En -> Virus
+En <- Temp -> Virus
+En -> Condition 
+}")
+coordinates(virus2) <- list(
+  x=c(Food=1, En=4.5, Condition=6, Temp=1, Virus = 9),
+  y=c(Food=1, En=4.5, Condition=2.5, Temp=9, Virus = 9))
+drawdag(virus2)
+
+adjustmentSets(virus2, 
+               exposure = c("Food", "Temp"), 
+               outcome = "Virus", 
+               effect = "total", 
+               type = "all")
+## Not changed!
+
+adjustmentSets(virus2, 
+               exposure = "Food", 
+               outcome = "Virus", 
+               effect = "direct")
+# This is now possible!
+adjustmentSets(virus2, 
+               exposure = "Temp", 
+               outcome = "Virus", 
+               effect = "direct")
+# This is now possible!
+```
+
+
+```{r}
+mFTCE <- quap(
+  alist(
+    Virus ~ dnorm(mu, sigma), 
+    mu <- a + bf*Food + bt*Temp + bc*Condition + be*En,
+    # priors
+    a ~ dnorm(3, 3), 
+    bf ~ dnorm(0, 1), 
+    bt ~ dnorm(0, 1), 
+    bc ~ dnorm(0, 1), 
+    be ~ dnorm(0, 1),
+    sigma ~ dexp(1)
+  ), data = expt
+)
+precis(mFTCE)
+plot(coeftab(mFT, mFTC, mFTCE), par = c("bf", "bt"))
+# The food coefficients is near zero because we've conditioned on its pipe
+# The temperature coefficient just represents the direct effect b/c we conditioned on the intermediary of En in the pipe.
+```
+
+
+# Example 2: An observational study
+
+Let's re-imagine our study as an observational one instead of an experiment. In this case, we might expect temperature to affect the availability of food, too. 
+
+
+
+::: {.callout-tip}
+## Your turn, part 1!
+First, revise the DAG, from above, to include this arrow from Temp to Food. Let's again assume that energy reserves (En) are unobserved. According to the DAG, what should we condition on to understand the total effect of food on virus titers? Of temperature on virus titers? Can we estimate the _direct_ effect of temperature on virus, given this DAG?
+:::
+
+```{r}
+virus3 <- dagitty("dag{
+Temp -> Food -> En -> Virus
+En <- Temp -> Virus
+En -> Condition 
+
+En [unobserved]
+}")
+coordinates(virus3) <- list(
+  x=c(Food=1, En=4.5, Condition=6, Temp=1,  Virus = 9),
+  y=c(Food=1, En=4.5, Condition=2.5, Temp=9,  Virus = 9))
+drawdag(virus3)
+
+impliedConditionalIndependencies(virus3)
+# No conditional independencies
+
+adjustmentSets(virus3, exposure = "Food", 
+               outcome = "Virus", 
+               effect="total", 
+               type = "all")
+# Must condition on temperature to estimate the total effect of food on Virus
+adjustmentSets(virus3, exposure = "Temp", 
+               outcome = "Virus", 
+               effect="total", 
+               type = "all")
+# Still no adjustments for the total effect of temperature
+
+adjustmentSets(virus3, exposure = c("Temp"), 
+               outcome = "Virus", 
+               effect="direct")
+# Still not possible to find the direct effect of temp on virus if we don't observe En
+```
+
+The next step is to simulate data from this new model. We'll have to think a bit more about how to do this in an observational study. 
+
+Let's imagine we went out and measured the temperature and food availability in 30 ponds^[I'm apparently incapable of providing a non-amphibian example!], then collected a group of tadpoles from each pond, recorded their _average_ body condition, and exposed them to the virus of interest and measured the _average_ viral concentration in the tadpoles. Thus, we have one observation of each variable in each of the 30 ponds. 
+
+We'll also assume that the prior experiments were conducted such that $\pm 1$ meant $\pm 1$ standard deviation. Thus we can use the same effect sizes as before and they should mean the same thing. 
+
+::: {.callout-tip}
+## Your turn, Part 2
+
+1. Establish a bunch of random temperatures (they are no longer set by the experimenter) around the mean temperature, which we'll center at zero and with a standard deviation of 1.
+2. Simulate a bunch of food availability, given some effect of temperature on food (again, centered so that the mean food availability is zero)
+3. Simulate energy reserves given temperature and food (for easy comparison, keep the effects the same as before)
+4. Simulate body condition and virus titers. 
+5. Plot a scatter plot matrix to observe your fake data
+:::
+
+
+```{r}
+n = 30
+# step 1
+obs <- data.frame(Temp = rnorm(n=n, mean=0, sd=1))
+# step 2
+obs$Food <- rnorm(n=n, mean = obs$Temp*0.5, sd = 0.25)
+# step 3
+obs$En <- rnorm(n=n, 
+                mean = b_TE*obs$Temp + b_FE*obs$Food, 
+                sd = 0.25)
+# step 4
+obs$Condition <- rnorm(n=n, 
+                       mean = b_EC*obs$En, 
+                       sd = 0.25)
+obs$Virus <- rnorm(n=n, 
+                   mean = 3 + b_EV*obs$En + b_TV*obs$Temp, 
+                   sd = 0.25)
+# step 5
+summary(obs)
+dev.off() # remember this trick?
+lattice::splom(obs)
+```
+
+With your simulated data, let's fit some models to see how much our estimates of _total_ effect sizes of food and temperature are influenced by using the correct and incorrect adjustments. 
+
+
+::: {.callout-tip}
+## Your turn, Part 3
+
+1. Fit the correct (per the `adjustmentSets()` function) models to find the appropriate estimates of the total effect of temperature on viral titers. 
+2. Fit at least one other model you think you might have fit had you not been knee-deep in DAG-thinking. 
+3. Compare the estimated effect size (i.e., coefficient for temperature) between the models. Describe what changed and, to the best of your abilities, why it changed. 
+4. Repeat for the total effect of _food_ on viral titers
+:::
+
+```{r}
+# step 1
+mT <- quap(
+  alist(
+    Virus ~ dnorm(mu, sigma), 
+    mu <- a + bt*Temp, 
+    # priors
+    a ~ dnorm(3, 3), 
+    bt ~ dnorm(0, 1), 
+    sigma ~ dexp(1)
+  ), data = obs
+)
+
+precis(mT)
+```
+
+```{r}
+# step 2
+mT2 <- quap(
+  alist(
+    Virus ~ dnorm(mu, sigma), 
+    mu <- a + bt*Temp + bf*Food, 
+    # priors
+    a ~ dnorm(3, 3), 
+    bt ~ dnorm(0, 1), 
+    bf ~ dnorm(0, 1), 
+    sigma ~ dexp(1)
+  ), data = obs
+)
+
+precis(mT2)
+
+
+mT3 <- quap(
+  alist(
+    Virus ~ dnorm(mu, sigma), 
+    mu <- a + bt*Temp + bf*Food + bc*Condition, 
+    # priors
+    a ~ dnorm(3, 3), 
+    bt ~ dnorm(0, 1), 
+    bf ~ dnorm(0, 1), 
+    bc ~ dnorm(0, 1),
+    sigma ~ dexp(1)
+  ), data = obs
+)
+
+precis(mT3)
+```
+
+```{r}
+# step 3
+plot(coeftab(mT, mT2, mT3), pars=c("bt"))
+# We can see that the effect size goes from positive to negative when we include food. 
+# This is presumably because we are conditioning on the pipe from Temp to Food to En to Virus, blocking this effect. Moreover, the effect of temperature on En is strongly negative (-0.75 vs the 0.5 of b_TE) so the leftover effect of virus is more negative than positive. Plus, biases get weird...
+```
+
+```{r}
+# step 4
+mF <- quap(
+  alist(
+    Virus ~ dnorm(mu, sigma), 
+    mu <- a + bf*Food + bt*Temp, 
+    # priors
+    a ~ dnorm(3, 3), 
+    bf ~ dnorm(0, 1), 
+    bt ~ dnorm(0, 1), 
+    sigma ~ dexp(1)
+  ), data = obs
+)
+
+# without the temperature effect
+mF1 <- quap(
+  alist(
+    Virus ~ dnorm(mu, sigma), 
+    mu <- a + bf*Food, 
+    # priors
+    a ~ dnorm(3, 3), 
+    bf ~ dnorm(0, 1), 
+    sigma ~ dexp(1)
+  ), data = obs
+)
+# with temperature, but also condition
+mF2 <- quap(
+  alist(
+    Virus ~ dnorm(mu, sigma), 
+    mu <- a + bf*Food + bt*Temp + bc*Condition, 
+    # priors
+    a ~ dnorm(3, 3), 
+    bf ~ dnorm(0, 1), 
+    bt ~ dnorm(0, 1), 
+    bc ~ dnorm(0, 1), 
+    sigma ~ dexp(1)
+  ), data = obs
+)
+
+plot(coeftab(mF, mF1, mF2), pars=c("bf"))
+# without temperature (mF1), we get a much smaller estimated effect of food. This is b/c the estimate of bf absorbs the negative influence of temperature, with which it is strongly correlated.
+# with temperature and condition, we get a slightly biased estimate with more uncertainty. I think it just muddies the waters. 
+```
+
