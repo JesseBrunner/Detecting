@@ -1,0 +1,372 @@
+---
+title: "Entropy, KL distance, and Deviance"
+author: "Jesse Brunner"
+format: 
+  revealjs:
+    embed-resources: true
+    
+execute: 
+  echo: true
+---
+```{r}
+#| include: false
+
+library(rethinking)
+```
+## From whence our metric of information?
+
+- entropy as a measure of information
+- KL as a measure of distance 
+    - added uncertainty by using an approximation for the True distribution
+- Deviance as a metric of (relative) distance
+    - do not need to know what is True
+    
+## A very simple example {.smaller}
+
+:::: {.columns}
+
+::: {.column width="50%"}
+
+```{r}
+#| echo: true
+
+# True model
+a <- 2
+b <- 1.5
+sigma <- 2
+
+x <- c(1,5,7,10)
+mu <- a+b*x
+
+# observations
+y <- round(rnorm(length(mu), 
+                 mean=mu, 
+                 sd=sigma), 
+           1)
+```
+
+```{r}
+#| echo: false
+y <- c(3.8, 13.7, 14.5, 16.2)
+```
+
+:::
+
+::: {.column width="50%"}
+```{r}
+#| fig-height: 8
+#| echo: false
+plot(x, y, ylim=c(0, max(y)), cex=2)
+abline(a=a, b=b, col="gray")
+```
+:::
+
+::::
+
+## Entropy of data | True model {.smaller}
+
+:::: {.columns}
+
+$$
+H(p) =  -\mathbb{E}\left[ \log(p_i)\right] = -\sum_{i=1}^n p_i \log(p_i)
+$$
+
+::: {.column width="40%"}
+```{r}
+# calculate entropy of data | True model
+(ps <- dnorm(y, 
+             mean=mu, 
+             sd=sigma)
+ )
+-sum(ps*log(ps))
+```
+:::
+
+::: {.column width="60%"}
+
+```{r}
+#| echo: false
+#| fig-height: 8
+
+# Show the distribution of expectations around the True values
+plot(x, y,
+     ylim=c(0, max(y)+2.5*sigma),
+     xlim=c(-1, max(x)))
+abline(a=a, b=b, col="gray")
+
+for(i in 1:length(x)){
+  pm <- 3*sigma
+  segments(x0=x[i],
+           y0=mu[i]-pm,
+           y1=mu[i]+pm)
+  points(x=x[i]+2*dnorm(x=seq(from=-pm, to=pm, length.out=50),
+                        mean=0,
+                        sd=sigma),
+         y=mu[i] + seq(from=-pm, to=pm, length.out=50),
+         type="l")
+}
+
+text(x=x, y=y,
+     labels=paste0("-", round(ps,3),"*ln(", round(ps,3), ")\n=", round(-ps*log(ps), 3)),
+     cex=4/3, pos=2)
+```
+:::
+
+::::
+
+## Let's fit some two simple models {.smaller}
+:::: {.columns}
+
+::: {.column width="50%"}
+```{r}
+# fit model with just a mean
+m0 <- quap(
+  alist(
+    y ~ dnorm(mu, sigma),
+    mu ~ dnorm(5, 3),
+    sigma ~ dexp(1)
+  ), data=data.frame(x,y)
+)
+precis(m0)
+```
+
+:::
+
+::: {.column width="50%"}
+```{r}
+# fit model with a mean and slope
+m1 <- quap(
+  alist(
+    y ~ dnorm(mu, sigma),
+    mu ~ a + b*x,
+    a ~ dnorm(5, 3),
+    b ~ dnorm(0,1),
+    sigma ~ dexp(1)
+  ), data=data.frame(x,y)
+)
+precis(m1)
+```
+:::
+
+::::
+
+## Let's fit some two simple models
+```{r}
+#| echo: false
+#| fig-height: 8
+# xs over which to simulate outcome
+xs <- data.frame(x=c(x, seq(0, 12, length.out=50)))
+preds_m0 <- link(m0, data=xs)
+preds_m0 <- apply(X=preds_m0,
+                  MARGIN=2,
+                  FUN=mean)
+
+preds_m1 <- link(m1, data=xs)
+preds_m1 <- apply(X=preds_m1,
+                  MARGIN=2,
+                  FUN=mean)
+
+plot(x, y,
+     ylim=c(0, max(y)+2.5*sigma),
+     xlim=c(-1, max(x)))
+abline(a=a, b=b, col="gray")
+points(xs$x, y=preds_m0, col="red", type="l")
+points(xs$x, y=preds_m1, col="blue", type="l")
+```
+
+## Cross entropy from using `m0` to approximate Truth {.smaller}
+:::: {.columns}
+
+::: {.column width="40%"}
+$$
+H(p, q) =  -\sum_{i=1}^n p_i \log(q_i)
+$$
+
+```{r}
+## cross entropy
+(qs <- dnorm(y, 
+             mean=preds_m0[1:4],  # probs if we use m0
+             sd=mean(extract.samples(m0)$sigma)) )
+-sum(ps*log(qs))
+
+# added entropy by using m0 to approximate True
+-sum(ps*log(qs)) - -sum(ps*log(ps))
+```
+
+:::
+
+::: {.column width="60%"}
+```{r}
+#| echo: false
+#| fig-height: 8
+plot(x, y,
+     ylim=c(0, max(y)+2.5*sigma),
+     xlim=c(-1, max(x)))
+abline(a=a, b=b, col="gray")
+points(xs$x, y=preds_m0, col="red", type="l")
+
+m0_sig <- mean(extract.samples(m0)$sigma)
+
+for(i in 1:4){
+  pm <- 3*m0_sig
+  segments(x0=x[i], y0=preds_m0[i]-pm, y1=preds_m0[i]+pm, col="red")
+  points(x=x[i]+2*dnorm(x=seq(-pm,pm, length.out=50), 0, m0_sig),
+         y=preds_m0[i] + seq(-pm,pm, length.out=50),
+         type="l", col="red")
+}
+
+text(x=x, y=y,
+     labels=paste0("-", round(ps,3),"*ln(", round(qs,3), ")\n=", round(-ps*log(qs), 3)),
+     pos=2, cex=4/3, col="red")
+```
+:::
+
+::::
+
+## Cross entropy from using `m1` to approximate Truth {.smaller}
+:::: {.columns}
+
+::: {.column width="40%"}
+$$
+H(p, q) =  -\sum_{i=1}^n p_i \log(q_i)
+$$
+
+```{r}
+## cross entropy
+(rs <- dnorm(y, 
+             mean=preds_m1[1:4],  # probs if we use m1
+             sd=mean(extract.samples(m1)$sigma)) )
+-sum(ps*log(rs))
+
+# added entropy by using m1 to approximate True
+-sum(ps*log(rs)) - -sum(ps*log(ps))
+```
+
+:::
+
+::: {.column width="60%"}
+```{r}
+#| echo: false
+#| fig-height: 8
+plot(x, y,
+     ylim=c(0, max(y)+2.5*sigma),
+     xlim=c(-1, max(x)))
+abline(a=a, b=b, col="gray")
+points(xs$x, y=preds_m1, col="blue", type="l")
+
+m1_sig <- mean(extract.samples(m1)$sigma)
+
+for(i in 1:4){
+  pm <- 3*m0_sig
+  segments(x0=x[i], y0=preds_m1[i]-pm, y1=preds_m1[i]+pm, col="blue")
+  points(x=x[i]+2*dnorm(x=seq(-pm,pm, length.out=50), 0, m1_sig),
+         y=preds_m1[i] + seq(-pm,pm, length.out=50),
+         type="l", col="blue")
+}
+
+text(x=x, y=y,
+     labels=paste0("-", round(ps,3),"*ln(", round(rs,3), ")\n=", round(-ps*log(rs), 3)),
+     pos=2, cex=4/3, col="blue")
+```
+:::
+
+::::
+
+
+## Kullback-Leibler divergence {.smaller}
+
+$$
+D_{KL}(p,q) = \sum_{i=1}^n p_i\left[ \log(p_i) - \log(q_i) \right]
+$$
+measures the added entropy from using a model to approximate True
+
+:::: {.columns}
+
+::: {.column width="50%"}
+```{r}
+# added entropy by using m0 to approximate True
+-sum(ps*log(qs)) - -sum(ps*log(ps))
+
+## Dkl(p,q)
+sum(ps*(log(ps)-log(qs)))
+## --> it's the same!
+```
+:::
+
+::: {.column width="50%"}
+```{r}
+## added entropy by using m1 to approximate true
+-sum(ps*log(rs)) - -sum(ps*log(ps))
+
+## Dkl(p,r)
+sum(ps*(log(ps)-log(rs)))
+## --> it's the same!
+```
+
+:::
+
+::::
+
+## Can compare KL distances of our models {.smaller}
+
+$$
+\begin{align}
+D_{KL}(p,q) - D_{KL}(p,r) & = \sum_{i=1}^n p_i\left[ \log(p_i) - \log(q_i) \right] - \sum_{i=1}^n p_i\left[ \log(p_i) - \log(r_i) \right] \\
+& = \sum_{i=1}^n p_i\left[ - \log(q_i) \right] - \sum_{i=1}^n p_i\left[ - \log(r_i) \right] 
+\end{align}
+$$
+
+```{r}
+# Difference in KL distances between m0 and m1
+sum(ps*(log(ps)-log(qs))) - sum(ps*(log(ps)-log(rs)))
+
+# We can get the same result if 
+# we ignore the first log(ps) term in both quantities
+-sum(ps*log(qs)) - -sum(ps*log(rs))
+```
+
+
+## What if we do not know the Truth? {.smaller}
+
+We _almost_ have all of the $p_i$ (`ps`) out of the quantity, but not quite
+
+If we take out it out completely, we end up with log-probability scores, which are just unstandardized
+
+$$
+\begin{align}
+D_{KL}(p,q) - D_{KL}(p,r) & = \sum_{i=1}^n p_i\left[ - \log(q_i) \right] - \sum_{i=1}^n p_i\left[ - \log(r_i) \right] \\
+& \propto \sum -log(q_i) - \sum -log(r_i)
+\end{align}
+$$
+So we use log probabilities to describe fit and compare them between models <phew!>
+
+## But not quite: lppd {.smaller}
+
+Have been pretending a single value for our expectations (the MAP)
+In actuality,  have a full distribution (posterior).
+--> log pointwise predictive density
+
+$$
+\text{lppd}(y,\Theta)=\sum_i^n \log \frac{1}{S}\sum_s^Sp(y_i|\Theta),
+$$
+
+```{r}
+# m0
+sum(log(qs))
+sum(lppd(m0))
+# m1
+sum(log(rs))
+sum(lppd(m1))
+```
+
+## But not quite: We use deviance {.smaller}
+
+```{r}
+-2*sum(lppd(m0))
+-2*sum(lppd(m1))
+```
+(smaller is better)
+
+These are our metrics of fit! 
+See that `m1` is _way_ better at fitting our data than `m0`
+
