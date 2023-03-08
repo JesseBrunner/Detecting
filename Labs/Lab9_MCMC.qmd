@@ -1,0 +1,196 @@
+---
+title: "Lab 9: From `quap()` to `ulam()`"
+author: "Jesse Brunner"
+date: "`r Sys.Date()`"
+format: 
+  html:
+    toc: true
+    embed-resources: true
+    code-fold: false
+execute:
+  include: true
+---
+We're graduating from models where quadratic approximation, using `quap()`, will suffice to situations where we'll need a general purpose integrator to estimate the posterior. There are a number that might fit the bill, in particular those using Gibbs samplers (e.g., BUGS, JAGS), but we're going to use a Hamiltonian MCMC method implemented in Stan. Stan is really a computer programming language of sorts and it can involve different sorts of thinking than we're used to using in R or in specifying our models so far. This is not to say that we can't or shouldn't write models in Stan directly---indeed, we'll start looking at Stan code very soon---but McElreath has created an interface with Stan (or perhaps translator) called `ulam()` that keeps the syntax virtually the same as we've been using, which is blessedly close to how we might write a model on paper. 
+
+Today our goals are to:
+
+* convince ourselves that `ulam()` works just like our `quap()` models so far, including all of the things we do with it. 
+* see how to assess whether our model is working well at estimating the posterior, looking at trace plots, etc.
+* peek under the hood to see what the Stan code actually looks like and does.
+
+# Back to the weight by height example
+
+Remember the !Kung height and weight data in the `Howell1` data set? 
+
+```{r}
+#| include: true
+#| message: false
+
+library(rethinking)
+data("Howell1")
+# rename for simplicity
+df <- Howell1
+
+head(df)
+```
+
+We may recall that the log of weight increased more-or-less linearly with height, which we centered on the mean height. We also considered how this relationship varied between males and females in the data set. Thus our model was written like this. 
+$$
+\begin{align}
+\log(y_i) & \sim \text{Normal}(\mu_i, \sigma) \\
+\mu_i & = \alpha[sex] + \beta[sex]  x_i \\
+\alpha & \sim \text{Normal}(50,10) \\
+\beta & \sim \text{Normal}(0.25, 0.25) \\
+\sigma & \sim \text{Exponential}(1)
+\end{align}
+$$
+First, let's prepare the data
+```{r}
+xbar <- mean(df$height)
+df$hc <- df$height -  xbar
+df$lwt <- log(df$weight)
+df$sex <- df$male + 1
+
+head(df)
+```
+
+# Fitting our model 
+
+## `quap()
+
+We can recycle prior code for the `quap()` version of the model:
+```{r}
+# quap version
+m_q <- quap(
+  alist(
+    lwt ~ dnorm(mu, sigma),
+    mu <- a[sex] + b[sex]*hc,
+    a[sex] ~ dnorm(2.5, 0.1), 
+    b[sex] ~ dnorm(0.02, 0.005),
+    sigma ~ dexp(1)
+  ), data=df
+)
+
+precis(m_q, depth=2, digits = 3)
+```
+
+
+## `ulam()`
+
+Now let's see what the `ulam()` version looks like:
+```{r}
+#| output: false
+
+# ulam version
+m_u <- ulam(
+  alist(
+    lwt ~ dnorm(mu, sigma),
+    mu <- a[sex] + b[sex]*hc,
+    a[sex] ~ dnorm(2.5, 0.1), 
+    b[sex] ~ dnorm(0.02, 0.005),
+    sigma ~ dexp(1)
+  ), data=df, 
+  chains = 4, cores = 4 
+)
+```
+It's the same syntax, except that a) we use `ulam()` in place of `quap()` and b) we might want to specify the number of chains to run (and the number of computer cores on which to run those chains). OK, and we get a lot more output (not shown here).
+
+## reading through the verbose output of a Stan model
+
+Take a second and scroll through that output. We see:
+
+1. The model compiles, which takes a second. The model is actually being translated in a way by Stan into C code^[It's actually doing some derivatives with the chain rule that are implemented in C, or something like that.] so that it can run efficiently. This compilation takes a bit sometimes, but it pays off dividends in much faster model runs!  
+2.  We then see the chains starting to run. We get status reports on the iteration number they're on every 100 iterations out of the default 1000 iterations. 
+3.  The first half of the iterations are called `Warmup` and the last half are `Sampling`. Warmup is not like in Gibbs sampling where the first (arbitrary) number of samples are thrown away because it takes a while for the chains to find the posterior. Instead the warmup period is all about finding appropriate steps sizes for _your_ posterior and other aspects of tuning the HMC integrator. 
+4.  Finally we see when the chains are finishing, or if there were some problems you'll get a probably cryptic message about what happened. 
+
+You may also see `Informational Message`'s about rejected proposals. For instance, I saw one (on one run)
+```
+Chain 3 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:
+Chain 3 Exception: normal_lpdf: Scale parameter is 0, but must be positive! (in '/var/folders/lm/75nnf8ws1cn_9j3184tr6bnh0000gn/T/RtmpSe7Jwy/model-9d748b56f5d.stan', line 23, column 4 to column 31)
+```
+First note that the line number and column are in the resulting Stan code that `ulam()` generated. I'll show you below how to see that code. But for now, lets just see what this message means. In essence, the scale parameter of the normal distribution ("lpdf" stands for log probability density function... that is, it's normal distribution function is like `dnorm(..., log=TRUE)`), which is the standard deviation, was on occasionally coming up as zero! The standard deviation _should be_ positive, right? But we've actually used a prior distribution for it that allows values to be zero. (See what the probability density of getting a zero is from an exponential distribution.) This rarely happens, which is why it's OK for us to use an exponential distribution for the prior of something that must be positive, even though it does not, technically, keep zeros from popping up here and there. 
+
+Anyway, that's the messages and such. What does it look like? How does the output compare with that from `quap()`?
+
+```{r}
+precis(m_q, depth=2, digits=3)
+precis(m_u, depth=2, digits=3)
+```
+
+They are darn near identical in terms of their parameter estimates and the CIs. We also see two extra columns. The `Rhat4` is a measure of convergence. We want to see it basically be equal to 1. If it gets above 1.05 we've got some convergence issues. (See `?Rhat` for more.)
+
+The `n_eff` column tells us how many essentially independent samples from the posterior we have for each parameter. Remember that we have a chain of samples from the posterior where each sample depends only on the previous sample. If those samples are correlated, they provide less information about the posterior than if they were independent. This uses some fancy logic to estimate the equivalent number of samples (or lenght of our chain) if all of the samples were independent of each other. Notice that we have fewer effective samples for `sigma` and more for the `b` parameter. You may also see that we might have _more_ effective samples than actual samples (500 samples/chain $\times$ 4 chains = 2000)! As McElreath notes in his book, sometimes a good sampler can do much better than random!
+
+Let's keep up the comparison:
+```{r}
+pairs(m_q, n=1000)
+pairs(m_u, n=1000)
+```
+
+The relationship between parameters, and the way you use the `pairs()` plot function are virtually identical.
+
+We can also extract samples just the same way:
+```{r}
+post_q <- extract.samples(m_q, n=1000)
+hist(post_q$sigma, col=NULL)
+
+post_u <- extract.samples(m_u, n=1000)
+hist(post_u$sigma, col=NULL, border = "red", add=T)
+```
+
+So those are the same, too.
+
+
+::: {.callout-tip}
+## Your turn
+
+As an exercise and chance to remember how we do such things, I would like you to generate a plot of weight (un-transformed, or really, back-transformed) against height for females and males in separate colors, showing the MAP as well as, let's say, an 80% CI around each line. 
+
+Please do this for both the `quap()` and `ulam()` models. 
+:::
+
+# Checking model convergence
+
+We should generally start our post-fitting routine by checking the HMC model's convergence on the posterior _before_ doing inferential things, like plotting posterior predictions! So let's learn how to do that.
+
+We've seen the `Rhat` statistic in the `precis()` output, which should give us some confidence in model fit
+```{r}
+precis(m_u, depth=2, digits = 3)
+```
+and those were encouraging. We can also use traceplots and "trankplots" to get a sense of whether our chains are mixing in parameter space. That is, are they covering the same values of parameters?
+```{r}
+traceplot(m_u)
+```
+
+We can see the trace of our chains through parameter space. The grey is the warmup period, where we start at all sorts of places and then end up converging on the region of parameter space for the sampling period. Our chains look good. (Unfortunately while McElreath's code says it _should_ be able to remove `trim` observations from the start, he hasn't actually implemented this, so there's no way to get his plots to focus on a narrower range of parameter space.)
+
+Rank plots show something similar, which suggests no chains are consistently higher or lower than the others in parameter space. 
+```{r}
+trankplot(m_u)
+```
+
+This is all very good!
+
+::: {.callout-tip}
+## Your turn
+
+Sometimes it's good to break things. See if you can't fit a model (maybe based on the weight-height data, but not necessarily) where our chains _do not_ mix. Feel free to consult with others. 
+:::
+
+# Peeking under the hood
+
+Lastly, I want to show you that you can see the actual Stan code produced by `ulam()`. It is worth seeing what this actually looks like.
+
+```{r}
+stancode(m_u)
+```
+
+::: {.callout-tip}
+## Your turn
+
+I would like you to take the stan code for `m_u` and explain what each part is doing, in your own words. 
+
+1. copy this into a new file (file/new file/Stan file) 
+2. using the `//` as a comment symbol, add comments explaining what is happening in each chunk
+:::
