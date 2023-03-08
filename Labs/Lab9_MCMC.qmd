@@ -101,7 +101,7 @@ Take a second and scroll through that output. We see:
 
 1. The model compiles, which takes a second. The model is actually being translated in a way by Stan into C code^[It's actually doing some derivatives with the chain rule that are implemented in C, or something like that.] so that it can run efficiently. This compilation takes a bit sometimes, but it pays off dividends in much faster model runs!  
 2.  We then see the chains starting to run. We get status reports on the iteration number they're on every 100 iterations out of the default 1000 iterations. 
-3.  The first half of the iterations are called `Warmup` and the last half are `Sampling`. Warmup is not like in Gibbs sampling where the first (arbitrary) number of samples are thrown away because it takes a while for the chains to find the posterior. Instead the warmup period is all about finding appropriate steps sizes for _your_ posterior and other aspects of tuning the HMC integrator. 
+3.  The first half of the iterations are called `Warmup` and the last half are `Sampling`. Warm up is not like in Gibbs sampling where the first (arbitrary) number of samples are thrown away because it takes a while for the chains to find the posterior. Instead the warm up period is all about finding appropriate steps sizes for _your_ posterior and other aspects of tuning the HMC integrator. 
 4.  Finally we see when the chains are finishing, or if there were some problems you'll get a probably cryptic message about what happened. 
 
 You may also see `Informational Message`'s about rejected proposals. For instance, I saw one (on one run)
@@ -120,7 +120,7 @@ precis(m_u, depth=2, digits=3)
 
 They are darn near identical in terms of their parameter estimates and the CIs. We also see two extra columns. The `Rhat4` is a measure of convergence. We want to see it basically be equal to 1. If it gets above 1.05 we've got some convergence issues. (See `?Rhat` for more.)
 
-The `n_eff` column tells us how many essentially independent samples from the posterior we have for each parameter. Remember that we have a chain of samples from the posterior where each sample depends only on the previous sample. If those samples are correlated, they provide less information about the posterior than if they were independent. This uses some fancy logic to estimate the equivalent number of samples (or lenght of our chain) if all of the samples were independent of each other. Notice that we have fewer effective samples for `sigma` and more for the `b` parameter. You may also see that we might have _more_ effective samples than actual samples (500 samples/chain $\times$ 4 chains = 2000)! As McElreath notes in his book, sometimes a good sampler can do much better than random!
+The `n_eff` column tells us how many essentially independent samples from the posterior we have for each parameter. Remember that we have a chain of samples from the posterior where each sample depends only on the previous sample. If those samples are correlated, they provide less information about the posterior than if they were independent. This uses some fancy logic to estimate the equivalent number of samples (or length of our chain) if all of the samples were independent of each other. Notice that we have fewer effective samples for `sigma` and more for the `b` parameter. You may also see that we might have _more_ effective samples than actual samples (500 samples/chain $\times$ 4 chains = 2000)! As McElreath notes in his book, sometimes a good sampler can do much better than random!
 
 Let's keep up the comparison:
 ```{r}
@@ -163,7 +163,22 @@ and those were encouraging. We can also use traceplots and "trankplots" to get a
 traceplot(m_u)
 ```
 
-We can see the trace of our chains through parameter space. The grey is the warmup period, where we start at all sorts of places and then end up converging on the region of parameter space for the sampling period. Our chains look good. (Unfortunately while McElreath's code says it _should_ be able to remove `trim` observations from the start, he hasn't actually implemented this, so there's no way to get his plots to focus on a narrower range of parameter space.)
+We can see the trace of our chains through parameter space. The grey is the warm up period, where we start at all sorts of places and then end up converging on the region of parameter space for the sampling period. Our chains look good. (Unfortunately while McElreath's code says it _should_ be able to remove `trim` observations from the start, he hasn't actually implemented this, so there's no way to get his plots to focus on a narrower range of parameter space.)
+
+There is, however, a way to get out of McElreath's code world and into the `rstan` world, which has it's similar functions, and a lot more!
+
+We can get the actual, fit `stan` model out of the `m_u` object that `ulam()` created by finding the `stanfit` slot in it.
+```{r}
+m_u@stanfit
+```
+
+We can then work with it, for instance using the `traceplot()` function that works on stan models:
+
+```{r}
+traceplot(m_u@stanfit)
+```
+
+This function only plots the sampling period, by default, which is what we wanted. So anyway, a peak behind the curtain.
 
 Rank plots show something similar, which suggests no chains are consistently higher or lower than the others in parameter space. 
 ```{r}
