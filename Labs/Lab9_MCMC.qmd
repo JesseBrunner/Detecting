@@ -178,7 +178,7 @@ We can then work with it, for instance using the `traceplot()` function that wor
 traceplot(m_u@stanfit)
 ```
 
-This function only plots the sampling period, by default, which is what we wanted. So anyway, a peak behind the curtain.
+This function only plots the sampling period, by default, which is what we wanted. So anyway, a peak behind the curtain^[Another helpful interface is found with `shinystan::launch_shinystan(m_u@stanfit)`. It's a fire hose, though, and it will take a lot to understand what you are seeing.].
 
 Rank plots show something similar, which suggests no chains are consistently higher or lower than the others in parameter space. 
 ```{r}
