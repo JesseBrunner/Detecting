@@ -497,7 +497,10 @@ points(0.18, -log(posterior(0.18)) +0.1, pch=16, col = rgb(1,0,0, 1))
 Track it's movement for a certain amount of "time" using Hamiltonian equations 
 
 $$
-\text{Total Energy} = \text{Kinetic} + \text{Momentum}
+\begin{align}
+\text{Total Energy} &= \text{Potential} + \text{Kinetic}\\
+E &= U(\theta) + K(\text{momentum})
+\end{align}
 $$
 
 After a bit of time, point at end is the new proposal
