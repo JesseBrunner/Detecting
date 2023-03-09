@@ -507,7 +507,7 @@ After a bit of time, point at end is the new proposal
 
 - Proposals tend to be in areas with higher probability density
 
-### HMC {.smaller}
+## HMC {.smaller}
 ```{r}
 curve(-log(posterior(x)), 
       from=0, to=10, n=1001,
@@ -517,7 +517,7 @@ points(c(0.18,0.6,0.85,1.2,1.6,2.2,3.2,3.6,4),
        -log(posterior(c(0.18,0.6,0.85,1.2,1.6,2.2,3.2,3.6,4))) +0.1, pch=16, col = rgb(1,0,0, 2:10/10))
 ```
 
-### HMC {.smaller}
+## HMC {.smaller}
 ```{r}
 curve(-log(posterior(x)), 
       from=0, to=10, n=1001,
@@ -554,5 +554,12 @@ No analytic solution to Hamiltonian for most problems, so:
     - too coarse and we don't follow the posterior
 - Energy at start and end _should_ be the same if we followed posterior surface
     -  gives a warning if these **diverge** 
+
+**Proposal acceptance** actually reflects the difference in energy (i.e., how well we followed the path of the ball)
+
+So unless there were divergences, we should accept
+
+## HMC details {.smaller}
+
 
 Overall, each proposal requires many more calculations (many steps, calculating kinetic energy & momentum at each), but proposals are much better / rarely rejected, so much more efficient overall
