@@ -1,0 +1,620 @@
+---
+title: "Lab 8: Prediction, regularization, & robust regression"
+author: "Jesse Brunner"
+date: "`r Sys.Date()`"
+format: 
+  html:
+    toc: true
+    embed-resources: true
+    code-fold: false
+execute:
+  include: true
+---
+We have spent most of the class, so far, thinking about inferring causation and estimating (hopefully) causal effects. But often we use our golems to _predict_ new observations. For instance, we might want to predict the presences or absence of a particular species at a series of ponds, or maybe the nitrogen inputs into a stream, based on things that are easier to measure. Any given project in biology likely has components of causal inferences and prediction, but those aims required different tools and perspectives. We have read about and seen most of these ideas, but there is no substitute for demonstrating the ideas to yourself. Thus, in today's lab we're going to get practice with:
+
+* Measuring & comparing predictive accuracy
+   * Cross validation
+   * Short-cuts to cross validation
+     * PSIS
+     * WAIC
+* The impacts of less-surprised distributions on predictive accuracy
+* The impacts of skeptical priors on predictive accuracy
+
+
+# Revisiting our viral titers example
+
+We need an example with which to work and rather than introducing another one, let's simply re-use our example of how viral titers in tadpoles change with pond temperature and food availability. Again, the DAG looks like this:
+
+```{r}
+#| message: false
+library(dagitty)
+library(rethinking)
+
+virus <- dagitty("dag{
+Temp -> Food -> En -> Virus
+En <- Temp -> Virus
+En -> Condition 
+
+En [unobserved]
+}")
+coordinates(virus) <- list(
+  x=c(Food=1, En=4.5, Condition=6, Temp=1,  Virus=9),
+  y=c(Food=1, En=4.5, Condition=2.5, Temp=9,  Virus=9))
+drawdag(virus)
+```
+
+```{r}
+dev.off() # remember this trick?
+
+```
+
+Notice that I added back in the measurement of body condition. If you recall from prior labs, we _never_ conditioned on this variable to estimate the effect of either temperature or food. 
+
+And again, we need some (fake) data to work with. We'll simulate data from this DAG using the same effect sizes and approach as in prior labs, with all of the variables but `Virus` standardized so that their mean is zero and +/- 1 refers to plus or minus one standard deviation. 
+
+```{r}
+set.seed(107)
+
+b_TV <- 0.5 # higher temps increase virus replication 
+b_TE <- -0.75 # higher temps lead to less energy available
+b_FE <- 0.75 # Food has a positive effect on energy available
+b_EC <- 0.75 # A pretty good predictor of body condition
+b_EV <- -1 # strong, negative effect of energetic reserves
+
+n=30
+
+obs <- data.frame(Temp=rnorm(n=n, mean=0, sd=1))
+obs$Food <- rnorm(n=n, mean=obs$Temp*0.5, sd=0.25)
+obs$En <- rnorm(n=n, 
+                mean=b_TE*obs$Temp + b_FE*obs$Food, 
+                sd=0.25)
+obs$Condition <- rnorm(n=n, 
+                       mean=b_EC*obs$En, 
+                       sd=0.25)
+obs$Virus <- rnorm(n=n, 
+                   mean=3 + b_EV*obs$En + b_TV*obs$Temp, 
+                   sd=0.25)
+summary(obs)
+```
+
+Now, let's imagine we were interested in three models where viral titers were modeled as a linear function temperature ($T$), temperature and food ($T+F$), and temperature, food, and body condition ($T+F+C$):
+$$
+\begin{align}
+m_a: V & \sim T \\
+m_b: V & \sim T + F \\
+m_c: V & \sim T + F + C
+\end{align}
+$$
+
+First, let's go ahead and fit all of these.
+```{r}
+ma <- quap(
+  alist(
+    Virus ~ dnorm(mu, sigma), 
+    mu <- a + bT*Temp, 
+    # priors
+    a ~ dnorm(3, 3), 
+    bT ~ dnorm(0, 1), 
+    sigma ~ dexp(1)
+  ), data=obs
+)
+
+mb <- quap(
+  alist(
+    Virus ~ dnorm(mu, sigma), 
+    mu <- a + bT*Temp + bF*Food, 
+    # priors
+    a ~ dnorm(3, 3), 
+    bT ~ dnorm(0, 1), 
+    bF ~ dnorm(0, 1), 
+    sigma ~ dexp(1)
+  ), data=obs
+)
+
+mc <- quap(
+  alist(
+    Virus ~ dnorm(mu, sigma), 
+    mu <- a + bT*Temp + bF*Food + bC*Condition, 
+    # priors
+    a ~ dnorm(3, 3), 
+    bT ~ dnorm(0, 1), 
+    bF ~ dnorm(0, 1), 
+    bC ~ dnorm(0, 1), 
+    sigma ~ dexp(1)
+  ), data=obs
+)
+```
+
+```{r}
+precis(ma)
+precis(mb)
+precis(mc)
+```
+
+# Measuring & comparing predictive accuracy
+
+Now how do we go about measuring the fit of each of these models? There are, in fact, many, many options! The metric we will be using in this class---and that is used more broadly in model comparison, whatever the statistical philosophy---is the sum of the logs of the probabilities of observing each observation. For our current purposes, we don't need to think too much about where this comes from, but we just need to think of this as a score for model fit to the data. 
+$$
+S(m)=\sum_i^n\log[p(y_i)],
+$$
+where we we simply sum up the log probabilities of each of the $n$ observations. 
+
+However, since we have a full distribution of posterior parameter estimates, we need to also consider a bunch of draws from the posterior when calculating the log probability of observing each point, which we call the log-pointwise-predictive density ($lppd$):
+$$
+\text{lppd}(y,\Theta)=\sum_i^n \log \frac{1}{S}\sum_s^Sp(y_i|\Theta),
+$$
+where we take $S$ samples from the posterior, $\Theta$, and average over them for each of the $n$ observations. 
+
+The equations are not too terribly if we take them slowly, but thankfully the actual calculations are simple with `rethinking::lppd()`:
+```{r}
+lppd(ma)
+```
+(Don't get too worried about the negative and positive log-probabilities. Remember, we're actually finding probability _densities_, which do not need to be bound between zero and one, which means we can get probability densities that are greater than one, the log of which are positive.)  
+
+We can sum these to get the total score for model a:
+```{r}
+sum(lppd(ma))
+```
+However, most of the time you will see people working with _deviance_, which is $-2\times \text{lppd}$
+```{r}
+-2*sum(lppd(ma))
+```
+ 
+OK, with this we can get and compare the _in-sample_ deviance for each model:
+```{r}
+# total in-sample deviances
+( scores_in <- c(-2*sum(lppd(ma)), -2*sum(lppd(mb)), -2*sum(lppd(mc))) )
+
+# let's plot these
+models <- c("ma", "mb", "mc")
+plot(scores_in, xaxt="n")
+axis(1, at=1:3, labels =models)
+```
+
+Lower values of deviance indicate better fits to the data. (Again, don't worry about the negatives or positives... this is just a continuous distance score.) So it looks like model a is much worse than the others at predicting the observations, and model c is best. Let's visualize this just to get a sense of how good/bad these models are at predicting actual (fake) observations. Thankfully, we can recycle some code from before.
+```{r}
+# Load in our code to find predicted values and intervals for those predictions
+genPreds <- function(df, model, n=1e4, lo=0.055, hi=0.945){
+  preds <- rethinking::link(fit=model, data=df, n=n)
+  df$preds_mean <- apply(X=preds, MARGIN=2, FUN=mean)
+  df$preds_lo <- apply(X=preds, MARGIN=2, FUN=quantile, prob=lo)
+  df$preds_hi <- apply(X=preds, MARGIN=2, FUN=quantile, prob=hi)
+  return(df) 
+}
+# load code to find posterior predictive distributions
+genPPD <- function(df, model, n=1e4, lo=0.055, hi=0.945){
+  obs <- rethinking::sim(fit=model, data=df, n=n)
+  df$PPD_lo <- apply(X=obs, MARGIN=2, FUN=quantile, prob=lo)
+  df$PPD_hi <- apply(X=obs, MARGIN=2, FUN=quantile, prob=hi)
+  return(df)
+}
+```
+
+```{r}
+# model a
+ppp_a <- genPreds(df=obs, 
+                model=ma, 
+                n=1e3)
+ppp_a <- genPPD(df=ppp_a, 
+                model=ma, 
+                n=1e3)
+
+# model b
+ppp_b <- genPreds(df=obs, 
+                model=mb, 
+                n=1e3)
+ppp_b <- genPPD(df=ppp_b, 
+                model=mb, 
+                n=1e3)
+# model c
+ppp_c <- genPreds(df=obs, 
+                model=mc, 
+                n=1e3)
+ppp_c <- genPPD(df=ppp_c, 
+                model=mc, 
+                n=1e3)
+
+# plot results against actual (fake) observations
+par(mfrow=c(1,3)) # <- a way to get three columns
+# ma
+plot(x=ppp_a$Virus, y=ppp_a$preds_mean, col="purple")
+segments(x0=ppp_a$Virus, y0=ppp_a$PPD_lo, y1=ppp_a$PPD_hi, col="purple")
+abline(a=0, b=1, lty=2)
+#mb
+plot(x=ppp_b$Virus, y=ppp_b$preds_mean, col="blue")
+segments(x0=ppp_b$Virus, y0=ppp_b$PPD_lo, y1=ppp_b$PPD_hi, col="blue")
+abline(a=0, b=1, lty=2)
+
+#mc
+plot(x=ppp_c$Virus, y=ppp_c$preds_mean, col="green")
+segments(x0=ppp_c$Virus, y0=ppp_c$PPD_lo, y1=ppp_c$PPD_hi, col="green")
+abline(a=0, b=1, lty=2)
+```
+```{r}
+dev.off()
+```
+
+So we can see what our deviance scores were telling us: with increasingly complex models we get better and better at accurately predicting our observations. 
+
+What we have _not_ yet done, however, is compare their ability to predict _new_ data. 
+
+# Cross validation
+Of course, we do not actually _have_ new data to try and predict^[Yes, since we made up these data from a "True" generating process we could make up more data to predict. However, with real data we won't have some new data set to predict unless we've specifically kept it in reserve. Thus, we'll use the more general cross-validation approach.]. Instead, we can leave out some data, fit the model, see how well it predicts the left out data, and repeat. This is called cross validation. We'll do the so-called "leave one out" or "loo" cross-validation, but this approach is general (e.g., we can divide the data up into $k$ groups and then leave one of these groups out in what is called "$k$-fold" cross-validation). It's easier to follow if we just do it.
+
+```{r}
+deviances <- matrix(data=NA, 
+                    nrow=nrow(obs), ncol=3)
+colnames(deviances) <- c("ma", "mb", "mc")
+
+for(i in 1:nrow(obs)){
+  # subset data
+  di <- obs[-i,]
+  # fit models to subset of data (with obs i missing)
+  ma_temp <- quap(ma@formula, data=di, 
+                  start=list(a=3,bT=0,sigma=1))
+  mb_temp <- quap(mb@formula, data=di,
+                  start=list(a=3,bT=0,bF=0,sigma=1))
+  mc_temp <- quap(mc@formula, data=di,
+                  start=list(a=3,bT=0,bF=0,bC=0,sigma=1))
+  
+  # calculate deviance for left out obs i
+  deviances[i,1] <- -2*lppd(ma_temp, data=obs[i,])
+  deviances[i,2] <- -2*lppd(mb_temp, data=obs[i,])
+  deviances[i,3] <- -2*lppd(mc_temp, data=obs[i,])
+}
+```
+
+If your computer is like mine, this took a while! We'll want to work on that, soon! But first, what did we get?
+```{r}
+# overall scores for out of sample prediction
+(scores_out <- colSums(deviances))
+```
+
+These are the _out-of-sample_ deviances for our three models. Let' see if we can add them to our plot of _in-sample_ deviances, from above.
+```{r}
+plot(scores_in, 
+     xaxt="n", 
+     ylim=c(min(scores_in), max(scores_out)),
+     type="b",
+     ylab="Deviance scores"
+     )
+axis(1, at=1:3, labels =models)
+points(scores_out, col="blue", type="b")
+```
+
+In summary, model c is the best at in-sample prediction _and_ out of sample prediction. This is the model that was _never_ the right one for causal inference!
+
+# Short-cuts to leave-one-out cross validation
+
+If our goal is leave-one-out cross validation, we have our hands full. We would need to refit and predict the left out observation $n$ times. We just ran it for $n=30$ and probably felt a bit fidgety. Can you imagine what it feels like with $n > 100$? Thankfully, we have some short-cuts. We have two general approaches:
+
+## Pareto-smoothed importance sampling (PSIS)
+
+This is a clever approach where to approximate the lppd for left out observations, we reweight each sample by the inverse of the probability of observing observation $i$ given that sample (plus some pareto-smoothing to avoid things going awry). This is built on the idea that unlikely observations (dare I say outliers?) have more influence on model fit, which means that if they are left out the model fit to the reduced data will change more. 
+
+Or, we can just accept that it works for now and run with it!
+
+```{r}
+(psis <- compare(ma, mb, mc, func="PSIS", sort=NULL))
+scores_out
+```
+
+
+```{r}
+#| echo: false
+plot(scores_in, 
+     xaxt="n", 
+     ylim=c(min(scores_in), max(psis$PSIS)),
+     type="b",
+     ylab="Deviance scores"
+     )
+axis(1, at=1:3, labels =models)
+points(scores_out, col="blue", type="b")
+points(psis$PSIS, col="red", type="b")
+```
+
+We can see that our PSIS scores (red in this plot) are not exactly the same as our actual cross-validation scores; that's not surprising. They do, however, capture the general pattern of those scores, which is good. So they are useful approximations. Just don't take them as if they were incredibly precise. Anyway, they are certainly a lot faster than cross-validation!
+
+## Widely applicable information criterion (WAIC)
+The second approach to approximating the out-of-sample deviance is based on adding a penalty for out-of-sample prediction to the in-sample deviance score, which should add up to the out-of-sample deviance scores (approximately). 
+
+```{r}
+#| echo: false
+plot(scores_in, 
+     xaxt="n", 
+     ylim=c(min(scores_in), max(scores_out)),
+     type="b",
+     ylab="Deviance scores"
+     )
+axis(1, at=1:3, labels =models)
+points(scores_out, col="blue", type="b")
+segments(x0=1:3, y0=scores_in, y1=scores_out, col="red")
+```
+
+Graphically, we can take the in-sample scores (black points), which are easy to calculate, and add to them a penalty (red segments) to estimate the out-of-sample scores (blue points). 
+
+$$
+\text{WAIC}(y, \Theta)=-2 \left( \text{lppd} - \sum_i^n \text{var}_{\theta} \log p(y_i | \theta) \right)
+$$
+
+The last part, the variance, is simply the variance in the log-probability of an observation across a bunch of samples from the posterior. Why does this work? Boy howdy! Look at the time! We best just move on and accept it as the "penalty for overfitting".
+
+Again, the code to implement this has been made for us:
+```{r}
+(waic <- compare(ma, mb, mc, func="WAIC", sort=NULL))
+scores_out
+```
+
+
+```{r}
+#| echo: false
+plot(scores_in, 
+     xaxt="n", 
+     ylim=c(min(scores_in), max(psis$PSIS)),
+     type="b",
+     ylab="Deviance scores"
+     )
+axis(1, at=1:3, labels =models)
+points(scores_out, col="blue", type="b")
+points(psis$PSIS, col="red", type="b")
+points(waic$WAIC, col="green", type="b")
+```
+
+In this case, the WAIC values do a bit better job of approximating the out-of-sample deviance (at least with my simulated data). But again, the idea is that this is a handy approximation, not a perfect one. 
+
+# Influential points
+
+You likely saw a message when you called `PSIS()` saying, `Some Pareto k values are very high (>1). Set pointwise=TRUE to inspect individual points.` Let's take a quick look at these. 
+```{r}
+PSIS(ma, pointwise=TRUE)
+```
+Remember that our PSIS is a summation of reweighted probabilities of observing each observation. It's thus relatively easy to break this into component parts, one for each observations. The parameter, $k$, tells us something about the importance of each observation to the final model fit. Let's explore these for each model.
+
+```{r}
+# first, let's just get the pointwise values of k
+k_a <- PSIS(ma, pointwise=TRUE, n=1e4)$k
+k_b <- PSIS(mb, pointwise=TRUE, n=1e4)$k
+k_c <- PSIS(mc, pointwise=TRUE, n=1e4)$k
+# and plot them according the observed virus titer 
+plot(obs$Virus, k_a, col="purple", pch=1)
+points(obs$Virus, k_b, col="blue", pch=2)
+points(obs$Virus, k_c, col="green", pch=3)
+abline(h=0.5, lty=2)
+```
+
+From this we can see that there are a few observations that are strongly influential to all three models, but otherwise the what is influential in one model is not necessarily very influential in another. This is not uncommon. What might be surprising if we only consider temperature might be pretty much expected if we also consider food availability. 
+
+Still, it can be hard to see why some points are influential. Let's return to our plot of the expected or predicted against the observed values for each model. Only now let's make the symbol size proportional to the value of k.
+
+```{r}
+par(mfrow=c(1,3)) # <- a way to get three columns
+# ma
+plot(x=ppp_a$Virus, y=ppp_a$preds_mean, col="purple",
+     cex=2*k_a)
+segments(x0=ppp_a$Virus, y0=ppp_a$PPD_lo, y1=ppp_a$PPD_hi, col="purple")
+abline(a=0, b=1, lty=2)
+#mb
+plot(x=ppp_b$Virus, y=ppp_b$preds_mean, col="blue",
+     cex=2*k_b)
+segments(x0=ppp_b$Virus, y0=ppp_b$PPD_lo, y1=ppp_b$PPD_hi, col="blue")
+abline(a=0, b=1, lty=2)
+
+#mc
+plot(x=ppp_c$Virus, y=ppp_c$preds_mean, col="green", 
+     cex=2*k_c)
+segments(x0=ppp_c$Virus, y0=ppp_c$PPD_lo, y1=ppp_c$PPD_hi, col="green")
+abline(a=0, b=1, lty=2)
+```
+```{r}
+dev.off()
+```
+
+The positions along the x-axis do not change among these panels, so we see where there are influential points across the models and, perhaps, get a sense of why. Digging into the values of predictors can also be helpful. None of this says these models are wrong or bad---indeed, these are "correct" models fit to simulated data, so they are in no way wrong or bad. These just highlight that particular observations have a large effect on the model fit. That can be super useful!
+
+We can do something similar with WAIC, too. 
+```{r}
+p_a <- WAIC(ma, pointwise=TRUE, n=1e4)$penalty
+p_b <- WAIC(mb, pointwise=TRUE, n=1e4)$penalty
+p_c <- WAIC(mc, pointwise=TRUE, n=1e4)$penalty
+
+# and plot them according the observed virus titer 
+plot(obs$Virus, p_a, col="purple", pch=1)
+points(obs$Virus, p_b, col="blue", pch=2)
+points(obs$Virus, p_c, col="green", pch=3)
+```
+
+There are no clear thresholds for the penalties, at least that I'm aware of, but higher does indicate more influential. Moreover, the WAIC penalties and the $k$ values from PSIS are generally correlated.
+```{r}
+plot(k_a, p_a)
+# plot(k_b, p_b)
+# plot(k_c, p_c)
+```
+
+# The impacts of less-surprised distributions on predictive accuracy
+
+What can we do if we're worried about influential points? That is, what are our options if we suspect that some points are strongly influencing our model fit, but we don't have a good way to account for or explain why? 
+
+One option is to use a distribution to describe our data that has longer tails. Instead of a normal distribution, we could use a student's t distribution. Instead of a binomial, we could use a beta-binomial. Instead of a Poisson, we could use a negative binomial. (Don't freak out! I'm not expecting that you know these distributions, let alone why they form these pairs! The point is just that they exist.) 
+
+We can motivate using these fat-tailed distributions in a couple ways. First, we might say, "I don't want my model to be too swayed by values that are further from the mean expectation." The fat tail gives more probability to those more extreme values than under the skinny-tailed distributions. 
+```{r}
+dnorm(6, mean=3, sd=1)
+dstudent(6, nu=2, mu=3, sigma=1) # 2 degrees of freedom
+```
+
+See? That means that the model isn't pulled as much towards the observation (here, of 6) because it is not extremely unlikely in the student's t version of things. 
+
+The second way to motive the use of a fat-tailed distribution is to acknowledge that there probably isn't a single sampling distribution across all of the data. That is, while one chunk of data might reasonably be describe as coming from a normal with a standard deviation of $\sigma=0.7$, another chunk might instead have a smaller or larger standard deviation ($\sigma=0.5$ or $\sigma=1.1$). If we lump together a bunch of these different distributions (and make some reasonable assumptions about the distribution of this parameter, here $\sigma$) we get a student's t distribution. (Or equivalently, a beta-binomial or a negative binomial, AKA beta-Poisson). 
+
+Whatever our rationale, we can easily fit models that are less surprised by highly influential observations. In fact, let's try this!
+
+::: {.callout-tip}
+## Your turn
+
+I would like you to:
+
+1.  re-fit each of our three models using a student's t distribution with two degrees of freedom, in place of the normal. The code is, `dstudent(2, mu, sigma)`.  
+2.  compare the predictive ability of the models with the more and less surprised distributions using psis or waic. 
+3.  explain the pattern of predictive abilities you observe. That is, why are they more/less/equally good at out of sample prediction?
+:::
+
+```{r}
+# re-fit each model
+ma_t <- quap(
+  alist(
+    Virus ~ dstudent(2, mu, sigma), 
+    mu <- a + bT*Temp, 
+    # priors
+    a ~ dnorm(3, 3), 
+    bT ~ dnorm(0, 1), 
+    sigma ~ dexp(1)
+  ), data=obs
+)
+
+mb_t <- quap(
+  alist(
+    Virus ~ dstudent(2, mu, sigma), 
+    mu <- a + bT*Temp + bF*Food, 
+    # priors
+    a ~ dnorm(3, 3), 
+    bT ~ dnorm(0, 1), 
+    bF ~ dnorm(0, 1), 
+    sigma ~ dexp(1)
+  ), data=obs
+)
+
+mc_t <- quap(
+  alist(
+    Virus ~ dstudent(2, mu, sigma), 
+    mu <- a + bT*Temp + bF*Food + bC*Condition, 
+    # priors
+    a ~ dnorm(3, 3), 
+    bT ~ dnorm(0, 1), 
+    bF ~ dnorm(0, 1), 
+    bC ~ dnorm(0, 1), 
+    sigma ~ dexp(1)
+  ), data=obs
+)
+```
+
+```{r}
+# compare estimated predictive ability
+compare(ma, ma_t, mb, mb_t, mc, mc_t, func="PSIS")
+```
+
+```{r}
+# explain the pattern
+
+# Better at fitting: With a less surprised distribution, our models are not pulled as much by more extreme data points. They tend to focus on the "regular features" of the data rather than overfitting. This can make them better at predicting new observations. 
+
+# Worse at fitting: With a less surprised distribution, our models may not be learning as much from the data about the "regular features" as they otherwise might. In some cases unexpected values might really be coming from some other process and so we wouldn't want them to pull our model toward them so much, but in this case our observations all come from the same process. There are no "outliers" in our data!
+```
+
+# The impacts of skeptical priors on predictive accuracy
+
+Lastly, if we have some sense of what values are reasonable for parameters, we can do a better job of out-of-sample prediction than if we pretend not to know anything. 
+
+Again, I'd like you to demonstrate this for yourself. This effect is more obvious with smaller sample sizes---given enough (informative) data, priors hardly matter! So we'll work with a restricted data set.
+
+
+::: {.callout-tip}
+## Your turn
+
+I would like you to:
+
+1.  re-fit each of our three models (using a normal distribution) with (a) just the first ten observations in our `obs` data set and then (b), again, with those ten observations _and_ a standard deviations of the priors for the slopes set to 10. This is a very broad distribution suggest we know almost nothing about their values.  (You can keep the other parameters the same, or change them if you like.)
+2.  compare the predictive ability of the models with the narrower (first set of models) and wider (new set of models) prior distributions using psis or waic. 
+3.  explain the pattern of predictive abilities you observe. That is, why are they more/less/equally good at out of sample prediction?
+:::
+
+```{r}
+# restrict the data set
+obs <- obs[1:10,]
+
+# refit the models with n=10
+ma <- quap(
+  alist(
+    Virus ~ dnorm(mu, sigma), 
+    mu <- a + bT*Temp, 
+    # priors
+    a ~ dnorm(3, 3), 
+    bT ~ dnorm(0, 1), 
+    sigma ~ dexp(1)
+  ), data=obs
+)
+
+mb <- quap(
+  alist(
+    Virus ~ dnorm(mu, sigma), 
+    mu <- a + bT*Temp + bF*Food, 
+    # priors
+    a ~ dnorm(3, 3), 
+    bT ~ dnorm(0, 1), 
+    bF ~ dnorm(0, 1), 
+    sigma ~ dexp(1)
+  ), data=obs
+)
+
+mc <- quap(
+  alist(
+    Virus ~ dnorm(mu, sigma), 
+    mu <- a + bT*Temp + bF*Food + bC*Condition, 
+    # priors
+    a ~ dnorm(3, 3), 
+    bT ~ dnorm(0, 1), 
+    bF ~ dnorm(0, 1), 
+    bC ~ dnorm(0, 1), 
+    sigma ~ dexp(1)
+  ), data=obs
+)
+
+# refit with wider priors
+ma_w <- quap(
+  alist(
+    Virus ~ dnorm(mu, sigma), 
+    mu <- a + bT*Temp, 
+    # priors
+    a ~ dnorm(3, 3), 
+    bT ~ dnorm(0, 10), 
+    sigma ~ dexp(1)
+  ), data=obs
+)
+
+mb_w <- quap(
+  alist(
+    Virus ~ dnorm(mu, sigma), 
+    mu <- a + bT*Temp + bF*Food, 
+    # priors
+    a ~ dnorm(3, 3), 
+    bT ~ dnorm(0, 10), 
+    bF ~ dnorm(0, 10), 
+    sigma ~ dexp(1)
+  ), data=obs
+)
+
+mc_w <- quap(
+  alist(
+    Virus ~ dnorm(mu, sigma), 
+    mu <- a + bT*Temp + bF*Food + bC*Condition, 
+    # priors
+    a ~ dnorm(3, 3), 
+    bT ~ dnorm(0, 10), 
+    bF ~ dnorm(0, 10), 
+    bC ~ dnorm(0, 10), 
+    sigma ~ dexp(1)
+  ), data=obs
+)
+```
+
+
+```{r}
+# compare estimated predictive ability
+compare(ma, ma_w, mb, mb_w, mc, mc_w, func="PSIS")
+compare(ma, ma_w, mb, mb_w, mc, mc_w, func="WAIC")
+```
+
+```{r}
+# explain the pattern
+
+# With enough data the priors don't matter much, which is mostly what we're seeing (in my data). However, in general,  models with wide priors are pulled more by the extreme observations because they do not weight them lower, a priori, than the models with narrower priors. This can make them worse at out-of-sample prediction. 
+```
