@@ -361,6 +361,6 @@ We've talked a bit about how unreasonably well the normal distribution does at d
 * Fit the "right" model, the one from which you simulated your data.
 * Fit a model with the same structure, only using a normal distribution to describe your data.
 * Compare how well both models estimated the parameters of your linear model. Were they close or was the normal approximation biased? Any ideas of why?
-* Compare their expected predictive performance using PSIS or WAIC. How different were they?
+* Compare their expected predictive performance using PSIS or WAIC. How different were they? Does this make sense to you? Is it advisable?
  
 :::
