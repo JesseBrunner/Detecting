@@ -1,0 +1,366 @@
+---
+title: "Lab 10: Distributions"
+author: "Jesse Brunner"
+date: "`r Sys.Date()`"
+format: 
+  html:
+    toc: true
+    embed-resources: true
+    code-fold: false
+execute:
+  include: true
+---
+
+In this class so far we have seen or played with two distributions. First, we learned about likelihood from a binomial distribution, where counting outcomes was approachable. But then we abandoned it and started using the normal or Gaussian distribution, both because it is familiar and so easy to work with, but also because it does a surprisingly good job of describing data when we don't have any good reason to choose something else. Well, today is the day to remind ourselves of these other options when we _do_ have reason not to use a Gaussian. 
+
+Our goals are to: 
+
+* reintroduce ourselves to the binomial, think about the Poisson, extend that to the gamma-Poisson (aka negative binomial), and finally consider the gamma, 
+* see how priors relate to the possible shapes of our distributions (again) and why we might say that with non-normal distributions there is _always_ an interaction, and
+* remind ourselves that even though a process might lead to distributional pattern, we cannot infer process from pattern.
+
+
+# Binomial distribution (difficulty Level: 1) 
+
+Whenever we have a certain number of trials, each of which has some probability of "success," however we define it, we should probably use a binomial distribution^[Recall that a Bernoulli distribution is a binomial where there is only one trial. So two for the price of one!]. 
+```{r}
+hist(rbinom(n=1e4, size=40, prob=0.12))
+```
+
+The two key variables are the number of trials ($N$ or `size`) and the probability of "success" ($p$ or `prob`). The only tricky bit is that the probability _must_ be between zero and one (inclusive). That makes it a bit harder to use in, say, a regression model.
+```{r}
+a <- 0.5
+b <- 0.5
+curve(a + b*x, from=-5, to=5)
+abline(h=c(0,1), lty=2)
+```
+
+While it might be possible to carefully select parameters that don't introduce impossible probabilities, it is hard in most real-world settings. Thus, we usually use some sort of **link** function that transforms the output of our linear model into an appropriately bounded value for our distribution. There are two common ones, depending on the discipline from which you come: the logit and the probit.
+
+## logit link / inverse of the logistic function
+
+First, a demonstration of the logistic function: 
+```{r}
+curve(plogis(a + b*x), from=-5, to=5, ylim=c(0,1))
+# OR replace plogis() with rethinking::logistic()
+abline(h=c(0,1), lty=2)
+```
+
+See how the same parameters for `a` & `b` now give y-values that fall between zero and one? Maybe convince yourself that this is always true. 
+
+Now, what is this doing? We can get a hint by looking in the code of the `rethinking` version.
+```{r}
+rethinking::logistic
+```
+Mathematically, 
+$$
+\text{logit}^{-1}(\mu) =\text{logistic}(\mu) = \frac{1}{1+\exp(-\mu)} = \frac{\exp(\mu)}{1+\exp(\mu)}
+$$
+So if $\mu = a + b \times x$ is our linear model, we could then specify the resulting estimate of probability, for our binomial distribution, as:
+$$
+p = \text{logistic}(\mu) = \frac{1}{1+\exp(-[a + b \times x])}
+$$
+But, you are probably asking, what the heck is this doing? The answer is a bit clearer if we instead write our linear model this (more common) way:
+$$
+\text{logit}(p) = a + b \times x
+$$
+where the logit (= inverse logistic) is the _log odds_ of success. We can define the odds of something as the probability of the event happening over the probability that it doesn't:
+$$
+\text{odds}(success) = \frac{p}{1-p}
+$$
+so even odds (=1) equate to a probability of $p=0.5$ and three to one odds equate to a probability of $p=0.75$. Now if we take the log of those odds, we have the logit of $p$:
+$$
+\text{logit}(p) = \text{logistic}^{-1}(p) = \log \left( \frac{p}{1-p} \right)
+$$
+Now log-odds go from $-\infty$ to $+\infty$, which means our linear model doesn't have to be bounded. 
+
+```{r}
+curve(rethinking::logit(x), xlab="Probability")
+```
+
+Anyway, if you do the math, you will see that the logistic just reverses the logit link, and vice versa. 
+
+The point is that by writing, say in our `ulam()` code, 
+```
+logit(p) = a+b*x
+```
+we mean,
+```
+p = 1/( 1 + exp(-(a+b*x)) )
+```
+which keeps the probability, `p`, bounded, even though we're using a linear model that can produce very large or very small values.
+
+Before moving on, it's worth noting that the logistic is a _distribution_, just like other distributions:
+```{r}
+curve(plogis(x, location = 0, scale = 1), from=-5, to=5) # cdf 
+curve(dlogis(x, location = 0, scale = 1), add=T, lty=2) # pdf
+```
+
+This will become important in a second.
+
+## probit link
+The other link, which is honestly very, very similar to the logit, is the probit link. Rather thinking about odds, the probit is usually introduced by thinking of the distribution of threshold exposures (e.g., pesticides, pathogens) required for some event, say death. Or instead you can think of them as tolerances, beyond which individuals succumb. If we assume that tolerances are normally distributed---and isn't that usually a good starting point---then the fraction of individuals that succumb at any given level of exposure (along the x-axis) would be described by the cumulative distribution function of the normal. Make sure that makes sense before moving on.
+
+```{r}
+curve(pnorm(x, mean = 0, sd = 1), from=-5, to=5) # cdf 
+curve(dnorm(x, mean = 0, sd = 1), add=T, lty=2) # pdf
+```
+
+Does that look familiar? It should look like the comparable versions of the logistic. We can similarly write our linear model as
+```
+probit(p) = a+b*x
+```
+and the mechanics of the inverse probit (which is the cumulative probability distribution of the normal) mean that the probability will be bounded between zero and one. What's more, with this thinking, that the standard deviation of the normal is essentially the inverse of the slope of a regression; steeper slopes mean narrower standard deviations. 
+
+## Thinking of priors
+
+Let's pretend that we were modeling the probability of some event using a binomial distribution and wanted to use a logit link. As good researchers we should simulate some relationships, or even data, given our priors. Let's also assume that we centered our data, so we expect our intercept, `a`, to be near zero. We also want to be cautious and not assume that slope, `b`, is positive or negative, but we think values closer to zero are more likely than very large or small values. So, following the habits we've developed, we assume priors for both that are normal and centered on zero. Let's see what this looks like:
+```{r}
+a <- rnorm(n=100, mean=0, sd=1) # pretty sure it will be close to zero
+b <- rnorm(n=100, mean=0, sd=1) # less sure, but not too crazy
+```
+
+Let's make up some x-values (predictors) and our response (y-values)
+```{r}
+plot(x=c(-5,5), y=c(-5,5), type="n", ylab="mu", xlab="predictor")
+for(i in 1:length(a)){
+  curve(a[i]+b[i]*x, add=TRUE)
+}
+```
+
+That seems like what we expected. But wait, we need to think about this on the probability scale. Right, let's repeat our plotting, but now with the `plogis()` function to implement the logit link.
+
+```{r}
+plot(x=c(-5,5), y=0:1, type="n", ylab="p", xlab="predictor")
+for(i in 1:length(a)){
+  curve( plogis(a[i]+b[i]*x) , add=TRUE)
+}
+```
+
+It's worth thinking about whether these are realistic. But let's imagine we were encouraged to use even _less_ informative priors on the slope. Say, normal with a standard deviation of 10. And no, this is not crazy. This is in fact what people I've worked with have been told to do.
+```{r}
+b <- rnorm(n=100, mean=0, sd=10)
+plot(x=c(-5,5), y=0:1, type="n", ylab="p", xlab="predictor")
+for(i in 1:length(a)){
+  curve( plogis(a[i]+b[i]*x) , add=TRUE)
+}
+```
+
+Whoa! This seems to be implying that we are certain there is a very steep positive or a very steep negative relationship, but more subtle relationships are very rare. Somehow our "uncertainty" led to extremes being most likely. 
+
+This is what happens with link functions. You _must_ consider your priors on the scale where they have their effect, as in, here, the probability of success they imply. 
+
+::: {.callout-tip}
+## Your turn
+
+In a typical univariate linear model, a one-unit increase in the predictor ($\Delta x$) leads to the same change in response, no matter where along the x-axis we start. That is, if we start at 0 and add 1 ($\Delta x=1$) we get the same $\Delta y$ as we would if we started at 5 and added 1 ($\Delta x=1$). 
+
+I would like you to discern and plot how much a one unit change in our predictor, `x`, alters our response, `prob`, in a model with a logit or probit link. 
+
+* Let's assume `a=0` and `b=0.5`. 
+* Starting at `x=-5`, see how much a `prob` changes if we added 1. Repeat across a range of `x`-values.
+* Graph these changes in `prob` against the `x`-values to which you added 1.  
+
+:::
+
+
+# Poisson distribution (difficulty level: 1.25)
+
+I gave this a higher difficulty level only because it is unfamiliar to most people. But really, it's pretty easy to grock with a bit of time and exposure. 
+
+Whenever we have a count of a number of events or discrete things in a unit of time or space, a Poisson is a pretty good distribution to consider. Some examples include the number of: 
+
+* tree seedlings per quadrat
+* visits to a food source per hour
+* human births in a given hospital per day 
+* number of species of phytoplankton per pond
+
+```{r}
+hist(rpois(n=100, lambda=0.5), col=NULL, breaks = 0:15, 
+     xlab="Number of things")
+hist(rpois(n=100, lambda=2.5), col=NULL, border="red", breaks = 0:15, add=T)
+hist(rpois(n=100, lambda=5), col=NULL, border="blue", breaks = 0:15, add=T)
+```
+
+Notice that with the Poisson you do not specify the number of trials. Instead, we are interested in the rate at which events happen out of a theoretically infinite number that _could_ happen. If you have a set number of events that could happen, you're back in binomial territory. 
+
+The Poisson is interesting in that it has only a single parameter, the average rate of events, or the mean, which is usually designated as $\lambda$. What's more, the variance is equal to the mean. Notice how the distributions become more spread out as the rate parameter increases in the figures above?
+
+Using a Poisson likelihood to describe your data (or connect your expectation, $\mu$, to your data) is simple; you simply need to make sure that the value of $\lambda$ you feed the Poisson is greater than zero. It is simple to use a linear model (which, again, can go negative) to describe this rate if you exponentiate it. Thus, 
+$$
+\lambda = \exp(a + b \times x)
+$$
+or, as we more commonly write it, 
+$$
+\log(\lambda) = a + b \times x
+$$
+As always, we should consider our priors on the scale where they have their effect, i.e., the rate parameter describing the rate of events.
+```{r}
+a <- rnorm(n=100, mean=0, sd=1) 
+b <- rnorm(n=100, mean=0, sd=1) 
+
+plot(x=c(-5,5), y=0:1, type="n", ylab=expression(lambda), xlab="predictor")
+for(i in 1:length(a)){
+  curve( exp(a[i]+b[i]*x) , add=TRUE)
+}
+```
+
+Does that look right? Maybe we want to tame the more extreme slopes a bit...
+
+## Offsets with a log-link
+
+Sometimes our sampling effort or time interval or the size our quadrat changes from sample to sample. For instance, imagine you measured the number of times a mother bird returned to a nest in and hour, but some observations were cut short when your assistant accidentally scared the bird away before the end of the hour. Or your estimates of the number of species per pond were estimated from a set number of dip-net sample, but the number of those samples available varied from pond to pond. How do we account for this?
+
+One strategy would be to simply average across the time or samples, but that would mean we no longer have counts. A better approach would be to include time or samples or whatever in our model. However, it might not be completely obvious how to accomplish this. 
+
+Imagine that `hours` was the variable describing how many (or the fraction of) hours during which observations of mother birds. We might be tempted to write our model as:
+$$
+\log(\lambda) = a + b \times x + c \times \text{hours},
+$$
+but if we exponentiate this, we see that $\lambda$ does not increase linearly with `hours`, but instead with some exponent of `hours`
+$$
+\lambda = \exp(a + b \times x + c \times \text{hours}),
+$$
+If $c$ is negative then the average rate exponentially decreases with increasingly long observation periods, whereas if $c$ is positive lambda increases exponentially. 
+
+The _right_ way to do this would be to use an offset, which looks like this:
+$$
+\log(\lambda) = a + b \times x + \log(\text{hours}),
+$$
+Now if we exponentiate both sides we get
+$$
+\lambda = \exp(a + b \times x)  \times \text{hours},
+$$
+so our estimate of $\lambda$ for any given value of $x$ is adjusted proportionally by the duration of the observation (or equivalently by the number of samples, area considered, etc.). 
+
+I'm making a big deal about this because a) you might run across an offset and now you know what it is and b) I've made this mistake and seen it made in many cases. So now you know...
+
+::: {.callout-tip}
+## Your turn
+
+The binomial and Poisson distributions are closely related---indeed, most of the distributions we'll work with are part of the [exponential family](https://en.wikipedia.org/wiki/Exponential_family), which is a bit weird and spooky to me. I would like you to convince yourself of how they converge. 
+
+* plot either random observations from or the PDFs of the binomial and Poisson distributions on the same axes.
+* play with the parameters of the distributions until they give (essentially) the same results
+* write down what it takes to get this convergence.
+:::
+
+# Gamma-Poisson / negative binomial (difficulty level: 3)
+
+So what if we have count data, but we see a really long tail? Or what if we expect that most counts will be low or even zero, but some small fraction should have lots and lots. Let me offer a few examples.
+
+* Imagine that the seedlings you are counting come from seeds, but the seeds are clustered or clumped together. Larger clumps would lead to more seedlings in a quadrat than those with small clumps or individual seeds. Or it could be seed hording by rodents. Or...
+* If you were counting the number of honey bee visits to flowers you might see that some flowers had a lot of visitors because early visitors taught their hive-mates where to find that flower. 
+* Parasite burdens are often highly over-dispersed^[Not to be confused with the over-dispersed from spatial statistics, which in essences means more regular than expected... why, oh, why does the same word mean opposite things?!]. This might be because some parasites replicate in their host, so those who were infected earlier would tend to have more parasites in them. Or it could be because parasites "weaken" their hosts, making them more easily infected by _more_ parasites. Or it could be differences in exposure; juvenile ticks are often found clustered in the environment, so a mouse that happens to run through a tick bomb like this would have a huge burden compared to one that crossed only one or two.
+
+One way to think of this is that our counts reflect an essentially random process happening at some rate, $\lambda$, but that the rate varies from plot to plot or flower to flower or host to host. If we are willing to assume that the rate is not a constant, but instead is a gamma distributed random variable---a not unreasonable assumption (see below)---then our counts reflect a gamma-Poisson process. 
+
+```{r}
+# generate a bunch of values of lambda from a gamma distribution
+lambdas <- rgamma(n=1e4, shape = 2, rate=1/2)
+hist(lambdas)
+summary(lambdas)
+
+# generate random observations from a Poisson  
+counts_betapois <- rpois(n=1e4, lambda=lambdas) # with our varying lambdas
+counts_pois <- rpois(n=1e4, lambda = mean(lambdas)) # or a constant value
+
+hist(counts_betapois, breaks = 0:max(counts_betapois))
+hist(counts_pois, breaks = 0:max(counts_betapois),
+     col=NULL, border = "red", add=TRUE)
+
+summary(counts_betapois)
+summary(counts_pois)
+```
+
+Notice that the over-dispersed version (gray bars) with varying values of $\lambda$ has more zeros and more high values than would be expected under the Poisson-only version (red) with a constant value of $\lambda$. That should make some sense because rather than having a single rate of about 4, some observations come from a Poisson with a rate much lower or much higher than 4. This is the gamma-Poisson.
+
+Another name for this is the negative binomial. 
+```{r}
+counts_nb <- rnbinom(n=1e4, mu = 4, size = 2)
+
+hist(counts_betapois, breaks = 0:max(counts_nb))
+hist(counts_pois, breaks = 0:max(counts_nb),
+     col=NULL, border = "red", add=TRUE)
+hist(counts_nb, breaks = 0:max(counts_nb),
+     col=NULL, border = "blue", add=TRUE)
+```
+
+See? We can recapitulate the beta-Poisson distribution (gray bars) with the negative binomial (blue)...because they are the same distribution. If you do the math, you'll see the relationship between parameters of the gamma and parameters of the negative binomial (in particular, the over-dispersion parameter, `size`, often written as $k$... I think `size` of the NB = 1/`rate` of the gamma, and vice versa). The larger the value of `size`, the more the results converge on the Poisson. 
+
+When I started looking at tick burdens on hosts and realized they were strongly over-dispersed, I got very excited about the possibility of inferring the process that led to the pattern in the data. A little reading about the negative binomial distribution, however, was a splash of cold water. There are a bazillion ways of arriving at the NB (See, for instance, [the wikipedia page](https://en.wikipedia.org/wiki/Negative_binomial_distribution)), from sequences of failures before $x$ successes to balls in urns to some of the sorts of examples I've given. In short, it's impossible to infer process from pattern alone. Again. 
+
+It's also worth noting that there are different ways of parameterizing the negative binomial that are mathematically equivalent. I'm using the "ecological" version, but you'll see it specified with probability of success (of the binomial trials in the sequence of failures before $x$ successes) and size, as well. They're the same, really, but I find the ecological version more comprehensible. 
+
+Again, be careful of your priors and their influences on the sorts of observations you golem expects to see. Here be dragons.
+
+# gamma distribution (difficulty level: 2.5)
+
+Gamma distributions are often used to describe waiting time or time to event data (e.g., time to death, time to mating). But they are also useful in that they describe continuous data that are $\geq 0$ and are quite flexible. If the normal or log-normal distribution is not appropriate for your continuous, positive data, give the gamma a gander^[Sorry, couldn't help it!].
+
+```{r}
+curve(dgamma(x, shape=1, scale=1), from=0, to=5) # exponential!
+curve(dgamma(x, shape=2, scale=1/3), col = "red", add=T)
+curve(dgamma(x, shape=3, scale=1/3), col="blue", add=T)
+```
+
+Note that when `shape` = 1, we get the exponential distribution. (You can also get the chi-square distribution from the gamma, but since most of us aren't especially familiar with the chi-square except as a point of comparison for our statistical tests, I won't go into it.)
+
+There are several ways of parameterizing this distribution, so be careful with parameters (usually rate = 1/scale and vice versa). No matter the parameterization the two parameters must be positive. 
+
+In this shape + rate version, the mean is shape$\times$rate (so the black and blue lines have the same mean of one, but the red one has a mean of 2/3). Since we usually use a model to describe the expectation or average value of our data, it would be nice to parameterize the gamma with a mean, directly. We can do this by redefining the gamma function in R, like so, where `mu` is the mean value
+```{r}
+dgamma2 <- function(x, mu, scale, log=FALSE){
+  dgamma(x, shape = mu/scale, scale = scale, log = log)
+}
+
+curve(dgamma2(x, mu=1, scale=1), from=0, to=5) # exponential!
+curve(dgamma2(x, mu=2/3, scale=1/3), col = "red", add=T)
+curve(dgamma2(x, mu=1, scale=1/3), col="blue", add=T)
+```
+
+Indeed, that is what McElreath created with his `rethinking::dgamma2()` function. Now you can model the mean, $\mu$, as a (linear) function of your predictors and treat the scale parameter separately.
+
+Since both `mu` and `scale` need to be positive, but probably not too large, an exponential distribution might be appropriate for priors on these two parameters.
+```{r}
+mus <- rexp(n=1e2, rate=1)
+scales <- rexp(n=1e2, rate=1)
+
+plot(x=c(0,5), y=c(0, 4), type="n", 
+     ylab="Probability density", 
+     xlab="x")
+for(i in 1:length(mus)){
+  curve(dgamma2(x, mu=mus[i], scale=scales[i]), add=T)
+}
+```
+
+We might also consider using normal distributions for the parameters and then exponentiating them, like so:
+```{r}
+mus <- exp(rnorm(n=1e2, mean=0, sd=1))
+scales <- exp(rnorm(n=1e2, mean=0, sd=1))
+
+plot(x=c(0,5), y=c(0, 4), type="n",
+     ylab="Probability density", 
+     xlab="x")
+for(i in 1:length(mus)){
+  curve(dgamma2(x, mu=mus[i], scale=scales[i]), add=T)
+}
+```
+
+Since the mean, $\mu$, must be positive, we might link our linear model to this mean with a log link, as we did above:
+$$
+\log(\mu) = a + b \times x
+$$
+Or really any link or scientific model that keeps $\mu > 0$ will suffice.
+
+::: {.callout-tip}
+## Your turn
+We've talked a bit about how unreasonably well the normal distribution does at describing data, even if there is no _a priori_ reason to expect strict normality. Let's test this idea. 
+
+* Simulate data (with $n=100$) from a simple, linear model with one of these non-normal distributions (e.g., binomial, Poisson, gamma). You can choose whatever parameters you like, but make sure you know what they represent.
+* Fit the "right" model, the one from which you simulated your data.
+* Fit a model with the same structure, only using a normal distribution to describe your data.
+* Compare how well both models estimated the parameters of your linear model. Were they close or was the normal approximation biased? Any ideas of why?
+* Compare their expected predictive performance using PSIS or WAIC. How different were they?
+ 
+:::
