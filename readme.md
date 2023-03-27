@@ -42,7 +42,7 @@ Tentative schedule (will be updated often, so check back)
 | Wk 10 | Mar-14 | Spring break    | | | |
 |       | Mar-15 | Spring break    | | | |
 |       | Mar-16 | Spring break    | | | |
-| Wk 11 | Mar-21 | Playing with non-normal distributions; transformations, etc. <(slides)[https://docs.google.com/presentation/d/1122Z6g0T30Qtx4biEIMDyLfXZlfuqecDZh6u6TsGcDA/edit]> |  Ch. 10. Big Entropy and the Generalized Linear Model (p299-300, 312-321)  | | |
+| Wk 11 | Mar-21 | Playing with non-normal distributions; transformations, etc. <[slides](https://docs.google.com/presentation/d/1122Z6g0T30Qtx4biEIMDyLfXZlfuqecDZh6u6TsGcDA/edit)> |  Ch. 10. Big Entropy and the Generalized Linear Model (p299-300, 312-321)  | | |
 |       | Mar-22 | Practice working with different distributions |   | | [Lab 10 Distributions](https://htmlpreview.github.io/?https://github.com/JesseBrunner/Detecting/blob/main/Labs/Lab10_Distributions.html) |
 |       | Mar-23 | Q&A: what   fits your data?  | | | |
 | Wk 12 | Mar-28 | binomials & playing with in a different parameter space  | Ch. 11. God Spiked the Integers (pp 323-358)  | | |
