@@ -1,0 +1,400 @@
+---
+title: "Lab 11: Continuous mixtures"
+author: "Jesse Brunner"
+date: "`r Sys.Date()`"
+format: 
+  html:
+    toc: true
+    embed-resources: true
+    code-fold: false
+execute:
+  include: true
+---
+
+So far in this class, our models generally assumed a Gaussian likelihood. This is nice in that you can estimate the expectation of the distribution, $\mu$, separately from the standard deviation, $\sigma$. That means that the model ends up estimating how much variation among observations it should expect after accounting for the predictors (via the linear model, getting you the expected value, $\mu$). When we deal with count data, however, our distributions are more constrained. 
+
+The variance of the binomial, for instance, is $n p (1-p)$ so that once your sample size, $n$, is set and you estimate the expectation, $p$, you have the variance (and thus the standard deviation, too). It is not estimated separately! The same is true of the Poisson distribution, where the variance is equal to the mean (i.e., both are $\lambda$). In both cases the variances (or standard deviation) is defined in terms of the expectation. 
+
+But what if you have reason to think that there is more than just this core amount of variation in whatever you've measured? Or, alternatively, what if you have reason to think that the expected value shouldn't necessarily be constant after account for the predictors? Enter the continuous mixture models where the expectation---$p$ or $\lambda$ in the binomial or Poisson models, respectively---varies according some other distribution. 
+
+Like most things in statistics, we can use these continuous mixtures phenomenologically, to describe extra variation without much thought to mechanism, or mechanistically, in which case we might have interest in the distribution of expectations or the processes that lead to different outcomes. So don't get too caught up in how we rationalize every little thing, but instead file away this approach for when you need it.
+
+# Beta-binomial
+
+Let's start with binomially distributed data, but allowing for the probability of success, $p$, to vary from observation to observation. A natural way of describing the distribution of possible values of $p$, which must be between zero and one, is with a beta distribution.  
+
+## Beta distribution
+Let's play with this beta distribution a bit. 
+```{r}
+curve(dbeta(x, shape1=5, shape2=2))
+```
+
+Try changing the values of `shape1` and `shape2` to see their influence on the distribution. One way to think of this is that `shape1` is the number of prior success + 1 and `shape2` is the number of prior failures + 1. (Remember, we used this distribution^[A congugate prior for the binomial.] to describe the posterior in the first globe-tossing example.) So you might say, for instance, that the curve, above, represents a prior on the probability of success for some binomial process where our initial study found 4 success and 1 failure. We can then update our prior with any additional failures and successes in our current study, say 4 additional successes and 2 failures:
+
+```{r}
+curve(dbeta(x, shape1=1+4, shape2=1+1), lty=2, ylim=c(0,3)) # prior
+curve(dbeta(x, shape1=1+4+4, shape2=1+1+2), add = T) # posterior
+```
+
+We could also parameterize the beta slightly differently, where the number of successes is $p\times n$ and the number of failures is $(1-p)\times n$. In our posterior the total number of successes is 8 out of 11 trials, for $p=0.72727$). So we could get the same curve with, 
+```{r}
+p <- 8/11
+n <- 11
+curve(dbeta(x, shape1=1+p*n, shape2=1+(1-p)*n)) # posterior
+```
+
+Notice that as $n$ increases we get a narrower and narrower peak around $p$. 
+
+This hints at the parameterization that we will use to describe the variation in values of $p$ in our binomial model (in the beta-binomial):
+```{r}
+theta <- n + 1
+curve(dbeta(x, shape1=p*theta, shape2=(1-p)*theta)) 
+```
+
+So `theta` is our dispersion parameter and larger values of `theta` equate to less and less variation in $p$. 
+
+## A beta-binomial logistic regression
+
+Let's work with some real (made up) data. Imagine we have a dose-response experiment, where `dose` refers to the order of magnitude of a pathogen.  
+
+Let's make up data.
+```{r}
+library(rethinking)
+# values for the regression
+a <- -5
+b <- 1.5
+theta <- 5 # is this big or small?
+
+dose <- rep(1:5, each = 3)
+
+# expected values on the logit scale
+mu <- a + b*dose
+
+# expected values on the probability scale
+prob <- inv_logit(mu)
+
+plot(prob ~ dose, ylim = c(0,1))
+```
+
+So those are the expectations. Let's make up and plot data. Say we had three trials at each dose and each trial had 20 individuals in it. 
+```{r}
+dead <- rbetabinom(n=length(prob), size=20, 
+                   prob = prob, 
+                   theta = theta)
+
+df <- data.frame(
+  dose = dose, 
+  dead = dead
+)
+
+plot(dead ~ jitter(dose, amount = 0.05), data = df,
+     ylim=c(0,20))
+```
+
+Those are a bit messier than perhaps we were expecting. Still, we might still be fine in fitting a logistic regression to it. Let's explore possible priors, just like before, only (again) looking at their influence on the scale we have some intuition about, the probability scale.
+
+```{r}
+as <- rnorm(1e2, mean=0, sd=1)
+bs <- rnorm(1e2, mean=0, sd=1)
+
+plot(x=c(1,5), y=0:1, type = "n", 
+     xlab = "Dose", ylab="Probability of death")
+for(i in 1:length(as)){
+  curve(inv_logit(as[i] + bs[i]*x), add=T)
+}
+```
+
+Whoa! That looks crazy! Not only are the inflection points over to the let, but we're saying negative relationships are just as likely as positive ones. That's not right. Let's futz.
+
+```{r}
+as <- rnorm(1e2, mean=-5, sd=1)
+bs <- rnorm(1e2, mean=2, sd=1)
+
+plot(x=c(1,5), y=0:1, type = "n",
+     xlab = "Dose", ylab="Probability of death")
+for(i in 1:length(as)){
+  curve(inv_logit(as[i] + bs[i]*x), add=T)
+}
+```
+
+I'm happier with that. We could go ahead and fit a basic logistic regression to these data, as follows:
+
+```{r}
+m0 <- ulam(
+  alist(
+    dead ~ dbinom(20, p),
+    logit(p) <- a + b*dose, 
+
+    # priors
+    a ~ dnorm(-5, 1),
+    b ~ dnorm(2, 1) 
+  ),
+  data = df, chains=4, cores=4
+)
+
+precis(m0)
+```
+
+So it is worth noting that (at least in my example) we were able to recover the True values of `a` and `b`. There will be cases, however, where some disparate observation can pull the model fit towards it. 
+
+No let's fit a beta-binomial model. First thing we need to do is consider the priors for `theta`, which will be our dispersion parameter. It needs to be positive, and I think values above 5-ish are more likely than values near zero, so I'm going to exponentiate a normal distribution to get a prior for `theta`. 
+
+```{r}
+# after some futzing to get parameters I'm happy with
+thetas <- exp(rnorm(1e3, mean = 2, sd = 2/3))
+hist(thetas, breaks = 50)
+```
+
+The model is veyr much the same, only we've added in the prior for theta (actually for `log_theta`, which is then exponentiated to be positive) and changed our distribution.
+```{r}
+m1 <- ulam(
+  alist(
+    dead ~ dbetabinom(20, p, theta),
+    logit(p) <- a + b*dose, 
+    theta <- exp(log_theta),
+    
+    # priors
+    a ~ dnorm(-5, 1),
+    b ~ dnorm(2, 1), 
+    log_theta ~ dnorm(2, 0.67)
+  ),
+  data = df, chains=4, cores=4
+)
+
+precis(m1)
+```
+
+I'm getting a number of errors and suspect you will, too. I think these are because our parameters sometimes yield probabilities of zero or one, which, would cause either the first or second shape parameters (aka "prior sample sizes" in the beta) to be zero. This could be avoided by, well, a bit more careful coding on McElreath's part^[Take that, wunderkind!], but it more or less works as is.
+
+With this model we can do all of the things we would normally do
+```{r}
+samples <- extract.samples(m1)
+
+# do we recover the intercept?
+hist(samples$a, breaks = 20)
+abline(v=a, col="red")
+
+# do we recover the slope?
+hist(samples$b, breaks = 20)
+abline(v=b, col="red")
+
+# do we recover theta?
+hist(exp(samples$log_theta), breaks = 20)
+abline(v=theta, col="red")
+```
+
+We can also, with some care, use `link()` and the other functions to generate predicted values for the beta-binomial model. We created a function, `genPreds()`, some weeks back to get the mean and CI of predictions across a range of predictors. 
+```{r}
+genPreds <- function(df, model, n=1e4, lo=0.055, hi=0.945){
+  # use link to generate preds
+  preds <- rethinking::link(fit=model, data=df, n=n)
+  # find average across preds for each column
+  meanpreds <- apply(X=preds, MARGIN=2, FUN = mean)
+  # add mean preds to data frame
+  df$preds_mean <- meanpreds
+  # find lower CI and add to df
+  df$preds_lo <- apply(X=preds, MARGIN=2, FUN = quantile, prob=lo)
+  # find upper CI and add to df
+  df$preds_hi <- apply(X=preds, MARGIN=2, FUN = quantile, prob=hi)
+  # return the data frame
+  return(df) 
+}
+```
+
+However, it will throw errors written as it was. The problem is that `link()` returns expected values for both `p` and `theta`. This causes our `genPreds` function to crash, because there's an extra dimension to the array of values returned. We can fix this by specifying that we just want to keep the first element in the list using the `[[1]]` notation. 
+```{r}
+genPreds2 <- function(df, model, n=1e4, lo=0.055, hi=0.945){
+  # use link to generate preds
+  preds <- rethinking::link(fit=model, data=df, n=n)[[1]] #<--- here
+  # find average across preds for each column
+  meanpreds <- apply(X=preds, MARGIN=2, FUN = mean)
+  # add mean preds to data frame
+  df$preds_mean <- meanpreds
+  # find lower CI and add to df
+  df$preds_lo <- apply(X=preds, MARGIN=2, FUN = quantile, prob=lo)
+  # find upper CI and add to df
+  df$preds_hi <- apply(X=preds, MARGIN=2, FUN = quantile, prob=hi)
+  # return the data frame
+  return(df) 
+}
+```
+
+Now we can use it to plot the predicted values against dose, as we have in the past.
+```{r}
+doses <- seq(1, 5, length.out=50)
+df_pred <- data.frame(dose=doses)
+
+# from m0
+df_pred0 <- genPreds(df=df_pred, model = m0)
+
+# from m1
+df_pred1 <- genPreds2(df=df_pred, model = m1)
+
+# lines for m0
+plot(preds_mean ~ dose, data = df_pred0, type = "l", col = "red",
+     ylab="Probability of death")
+lines(preds_lo ~ dose, data = df_pred0, lty=2, col = "red")
+lines(preds_hi ~ dose, data = df_pred0, lty=2, col = "red")
+# lines for m1
+lines(preds_mean ~ dose, data = df_pred1, col = "blue")
+lines(preds_lo ~ dose, data = df_pred1, lty=2, col = "blue")
+lines(preds_hi ~ dose, data = df_pred1, lty=2, col = "blue")
+# observed data
+points(x=df$dose, y=df$dead/20)
+```
+
+And we can plot and get the posterior predicted density (here without needing to modify our prior function). 
+```{r}
+genPPD <- function(df, model, n=1e4, lo=0.055, hi=0.945){
+  # use sim to generate predicted observation
+  obs <- rethinking::sim(fit=model, data=df, n=n)
+  # find lower quantile of predicted observations for each column
+  df$PPD_lo <- apply(X=obs, MARGIN=2, FUN = quantile, prob=lo)
+  # find upper quantile of predicted observations for each column
+  df$PPD_hi <- apply(X=obs, MARGIN=2, FUN = quantile, prob=hi)
+  # return df
+  return(df)
+}
+```
+
+
+```{r}
+df_pred0 <- genPPD(df=df_pred0, model = m0)
+df_pred1 <- genPPD(df=df_pred1, model = m1)
+
+# lines for m0
+plot(preds_mean ~ dose, data = df_pred0, type = "l", col = "red",
+     ylab="Probability of death")
+lines(preds_lo ~ dose, data = df_pred0, lty=2, col = "red")
+lines(preds_hi ~ dose, data = df_pred0, lty=2, col = "red")
+lines(PPD_lo/20 ~ dose, data = df_pred0, lty=3, col = "red")
+lines(PPD_hi/20 ~ dose, data = df_pred0, lty=3, col = "red")
+# lines for m1
+lines(preds_mean ~ dose, data = df_pred1, col = "blue")
+lines(preds_lo ~ dose, data = df_pred1, lty=2, col = "blue")
+lines(preds_hi ~ dose, data = df_pred1, lty=2, col = "blue")
+lines(PPD_lo/20 ~ dose, data = df_pred1, lty=3, col = "blue")
+lines(PPD_hi/20 ~ dose, data = df_pred1, lty=3, col = "blue")
+# observed data
+points(x=df$dose, y=df$dead/20)
+```
+
+Take a few moments and make sure you understand what we are showing. Why are the dotted lines ragged? Why are the blue lines generally wider around the mean expectation than the red ones?
+
+::: {.callout-tip}
+## Your turn!
+I'd like you to see how much our capacity to estimate the True relationship is affected by higher or lower values of the overdispersion parameter, theta. Try using `theta = 1` and `theta = 20`, leaving the other parameters the same when generating data. Does this affect our estimates of `a` and `b`? 
+
+Fit both a regular binomial logistic regression _and_ a beta-binomial logistic regression to each data set. 
+
+Do we lose our precision? Does the relationship, like that we just plotted, become less certain?
+:::
+
+
+# Zero-inflated Poisson
+
+If you've done any field work, looking for some species of interest, you've almost certainly had moments where you weren't finding it and you had to ask yourself, is this species present and I'm just not finding it, or is it just not here? This is a common example for when we might have multiple causes of zeros in our data. Thankfully, we can formalize this logic and use it to both account for the extra zeros in our data, but also separately estimate the probability of absence and the rate of observations given that the species is present. (Or the equivalent with monks writing manuscripts.)
+
+I think a concrete example can help us think through the problem. Imagine that we go out to a bunch of ponds---the gold standard of ecological science---and listen for frogs calling for a total of 5 minutes per pond. We might hear no calls from a pond because there are no frogs there, or perhaps because there are frogs calling, but they didn't call during that period of observation. (We'll set aside methodological considerations, like scaring frogs, and covariates like wind and temperature.)
+```{r}
+p_absent <- 0.4 # 40% of ponds have no frogs
+calling_rate <- 1.5 # calls per 5 minute period
+n <- 40 # ponds visited
+
+calls <- rpois(n, 
+               lambda = calling_rate*
+                 rbinom(n, size=1, prob=1-p_absent) 
+               )
+
+stem(calls)
+```
+So those are the data. It's worth noting that our raw estimate of the proportion of ponds without frogs is inflated. 
+```{r}
+sum(calls==0)/n
+```
+
+However, if you made the calling rate much higher, it might be easier to distinguish the true absences from the apparent absences simply because you would almost be guaranteed to here a frog calling if present.
+```{r}
+stem(rpois(n, 
+           lambda = 6*
+             rbinom(n, size=1, prob=1-p_absent) 
+))
+```
+
+Anyway, let's work on a zero-inflated Poisson model. First, let's think about the priors for both the probability of absence and the rate of calling.
+
+Let's assume that complete presence or absence are unlikely, but not much more than that. (Rember that "success" here is the absence of frogs.)
+```{r}
+curve(dbeta(x, shape1=2, shape2 = 2))
+```
+
+And then let's assume that calling rates are low, but must be positive.
+```{r}
+curve(exp(dnorm(x, mean=1, sd=1)), from = 0, to = 5)
+```
+
+Now we can construct a model pretty simply. We just need to provide our estimates of `p` and `lambda` and their respective priors. It's deceptively simple.
+```{r}
+df2 <- data.frame(calls = calls)
+
+m2 <- ulam(
+  alist(
+    calls ~ dzipois(p, lambda),
+    log(lambda) <- log_lambda,
+    
+    # priors
+    p ~ dbeta(2,2),
+    log_lambda ~ dnorm(1,1)
+  ), data = df2, 
+  chains = 4, cores = 4
+)
+
+precis(m2)
+
+samples <- extract.samples(m2)
+
+# Did we estimate p_absent very well?
+hist(samples$p, breaks = 50)
+abline(v = p_absent, col="red")
+
+# Did we estimate the calling rate well?
+hist(exp(samples$log_lambda), breaks = 50)
+abline(v = calling_rate, col="red")
+```
+
+I'm pleased that we do a pretty good job of estimating the probability of absence as well as the calling rate. How would we do if we didn't account for these absences?
+
+To find out, let's fit a straight up Poisson model.
+```{r}
+m3 <- ulam(
+  alist(
+    calls ~ dpois(lambda),
+    log(lambda) <- log_lambda,
+    
+    # priors
+    log_lambda ~ dnorm(1,1)
+  ), data = df2, 
+  chains = 4, cores = 4
+)
+
+precis(m3)
+
+samples <- extract.samples(m3)
+
+# Did we estimate the calling rate well?
+hist(exp(samples$log_lambda), breaks = 50)
+abline(v = calling_rate, col="red")
+```
+
+So we get a bias. Does this make sense to you?
+
+::: {.callout-tip}
+## Your turn!
+I'd like you to take this example and expand it a bit. It might be reasonable to think that larger ponds have more frogs and so the overall calling rate, $\lambda$, would increase with the area of the pond. I would like you to:
+
+* Simulate data from this example. You'll need to make up the relationship and range of pond sizes. I'd recommend keeping it simple, but heck, you're the captain.
+* Fit a zero-inflated Poisson model to these simulated data. Be sure to do your prior-predictive checks to avoid silly problems.
+* Plot the expected relationship between pond size and calling rate, as well as the (simulated) data. 
+* Repeat with a plain old Poisson model. Tell me how _not_ accounting for the extra zeros changes your interences or estimates of the effect of pond area.
+
+:::
