@@ -1,0 +1,259 @@
+---
+title: "Models with Memory"
+author: "Jesse Brunner"
+format: 
+  revealjs:
+    embed-resources: true
+---
+
+## A simple example
+
+```{r}
+
+library(tidyverse)
+library(rethinking)
+genPreds <- function(df, model, n=1e4, lo=0.055, hi=0.945){
+  # use link to generate preds
+  preds <- rethinking::link(fit=model, data=df, n=n)
+  # find average across preds for each column
+  meanpreds <- apply(X=preds, MARGIN=2, FUN = mean)
+  # add mean preds to data frame
+  df$preds_mean <- meanpreds
+  # find lower CI and add to df
+  df$preds_lo <- apply(X=preds, MARGIN=2, FUN = quantile, prob=lo)
+  # find upper CI and add to df
+  df$preds_hi <- apply(X=preds, MARGIN=2, FUN = quantile, prob=hi)
+  # return the data frame
+  return(df) 
+}
+
+set.seed(103)
+```
+
+Imagine we measured the relative size of six individual...plants? frogs?
+
+Have measurements at weeks 0, 2, 3, 4, 6, and 8 
+
+Some data are missing
+
+## Simulating our example
+```{r, include=TRUE}
+#| echo: true
+n <- 6
+time <- c(0, 2, 4, 6, 8)
+betas <- rnorm(n=n, mean = 0.9, sd = 0.25)
+sigma <- 0.75
+
+df <- expand.grid(ID = 1:n,
+                  time = time)
+df$size <- rnorm(n=nrow(df), 
+                 mean=betas[df$ID]*df$time, 
+                 sd=sigma)
+df$size[df$time == 0] <- 0
+df <- df[-sample(1:nrow(df), 10), ]
+```
+
+## Simulating our example
+```{r}
+ggplot(df, aes(time, size, group = ID)) +
+  geom_point() + geom_line()
+```
+
+## Analysis goal
+
+Our research question is whether plants or frogs grow substantially over time. 
+
+(And probably we'd have different treatments, but we're keeping it simple so far.)
+
+_How would you analyze these data?_
+
+## Option 1: ignore the grouping... complete pooling
+ 
+individuals are essentially identical
+```{r}
+#| echo: true
+#| results: false
+m1 <- ulam(
+  alist(
+    size ~ dnorm(mu, sigma), 
+    mu <- beta*time,
+    
+    # priors
+    beta ~ dnorm(1,1),
+    sigma ~ dexp(2)
+  ), data = df
+)
+```
+```{r}
+#| echo: true
+precis(m1)
+```
+
+## Option 1: ignore the grouping... complete pooling
+```{r}
+preds1 <- tibble(time = time)
+preds1 <- genPreds(df=preds1, model = m1)
+
+ggplot(df, aes(time, size)) +
+  geom_point() + geom_line(aes(group = ID)) + 
+  geom_ribbon(data=preds1, 
+              aes(ymin=preds_lo, ymax=preds_hi, 
+                  y=preds_mean), fill = "red", alpha=1/3) + 
+  geom_line(data=preds1, 
+            aes(y=preds_mean), color = "red")
+```
+
+
+## Option 2: every individual (or group) is different... no pooling
+
+```{r}
+#| echo: true
+#| results: false
+m2 <- ulam(
+  alist(
+    size ~ dnorm(mu, sigma), 
+    mu <- beta[ID]*time,
+    
+    # priors
+    beta[ID] ~ dnorm(1, 1),
+    sigma ~ dexp(2)
+  ), data = df
+)
+```
+```{r}
+#| echo: true
+precis(m2, depth=2)
+```
+
+## Option 2: every individual (or group) is different... no pooling
+
+```{r}
+preds2 <- expand_grid(time = time, 
+                      ID = 1:n)
+preds2 <- genPreds(df=preds2, model = m2)
+
+ggplot(df, aes(time, size, group = ID)) +
+  geom_point() + geom_line(aes(group = ID)) + 
+  geom_ribbon(data=preds2, 
+              aes(ymin=preds_lo, ymax=preds_hi, 
+                  y=preds_mean), fill = "red", alpha=1/3) + 
+  geom_line(data=preds2, 
+            aes(y=preds_mean), color = "red")
+```
+
+## Option 2: every individual (or group) is different... no pooling
+
+```{r}
+preds2 <- expand_grid(time = time, 
+                      ID = 1:n)
+preds2 <- genPreds(df=preds2, model = m2)
+
+ggplot(df, aes(time, size, group = ID)) +
+  geom_point() + geom_line(aes(group = ID)) + 
+  geom_ribbon(data=preds2, 
+              aes(ymin=preds_lo, ymax=preds_hi, 
+                  y=preds_mean), fill = "red", alpha=1/3) + 
+  geom_line(data=preds2, 
+            aes(y=preds_mean), color = "red") + 
+  facet_wrap(vars(ID))
+```
+
+
+## Option 2b: average across group estimates
+
+```{r}
+samples2 <- extract.samples(m2)
+ggplot(data = tibble(beta = colMeans(samples2$beta)), aes(beta)) + 
+  geom_histogram() +
+  geom_vline(xintercept = 0.9) + 
+  stat_function(fun = function(x) 6*dnorm(x, 0.9, 0.25)) 
+```
+
+mean across individuals estimates
+```{r}
+summary( apply(samples2$beta, MARGIN=1, FUN = mean) )
+```
+
+standard deviation among individual estimates
+```{r}
+summary( apply(samples2$beta, MARGIN=1, FUN = sd) )
+```
+
+## Option 3: partial pooling
+
+every individual (or group) is different, but not that different
+
+```{r}
+#| echo: true
+#| results: false
+m3 <- ulam(
+  alist(
+    size ~ dnorm(mu, sigma), 
+    mu <- beta[ID]*time,
+    
+    # priors
+    beta[ID] ~ dnorm(beta_mu, beta_sd),
+    beta_mu ~ dnorm(1,1),
+    beta_sd ~ dexp(1),
+    sigma ~ dexp(2)
+  ), data = df
+)
+```
+```{r}
+#| echo: true
+precis(m3)
+```
+## Option 3: partial pooling
+
+```{r}
+preds3 <- expand_grid(time = time, 
+                      ID = 1:n)
+preds3 <- genPreds(df=preds3, model = m3)
+
+ggplot(df, aes(time, size, group = ID)) +
+  geom_point() + geom_line(aes(group = ID)) + 
+  
+  geom_ribbon(data=preds3, 
+              aes(ymin=preds_lo, ymax=preds_hi, 
+                  y=preds_mean), fill = "blue", alpha=1/3) + 
+  geom_line(data=preds3, 
+            aes(y=preds_mean), color = "blue")
+```
+
+## Option 3: partial pooling
+
+```{r}
+preds3 <- expand_grid(time = time, 
+                      ID = 1:n)
+preds3 <- genPreds(df=preds3, model = m3)
+
+ggplot(df, aes(time, size, group = ID)) +
+  geom_point() + geom_line(aes(group = ID)) + 
+  
+  geom_ribbon(data=preds3, 
+              aes(ymin=preds_lo, ymax=preds_hi, 
+                  y=preds_mean), fill = "blue", alpha=1/3) + 
+  geom_line(data=preds3, 
+            aes(y=preds_mean), color = "blue") +
+  facet_wrap(vars(ID))
+```
+
+## slightly changed predictions
+```{r}
+ggplot(df, aes(time, size, group = ID)) +
+  geom_point() + geom_line(aes(group = ID)) + 
+  geom_ribbon(data=preds2, 
+              aes(ymin=preds_lo, ymax=preds_hi, 
+                  y=preds_mean), fill = "red", alpha=1/3) + 
+  geom_line(data=preds2, 
+            aes(y=preds_mean), color = "red") + 
+  geom_ribbon(data=preds3, 
+              aes(ymin=preds_lo, ymax=preds_hi, 
+                  y=preds_mean), fill = "blue", alpha=1/3) + 
+  geom_line(data=preds3, 
+            aes(y=preds_mean), color = "blue") + 
+  facet_wrap(vars(ID))
+```
+
+Predictions are drawn towards the mean, all else equal.
+
