@@ -1,0 +1,283 @@
+---
+title: "Lab 12: Models with mixtures"
+author: "Jesse Brunner"
+date: "`r Sys.Date()`"
+format: 
+  html:
+    toc: true
+    embed-resources: true
+    code-fold: false
+execute:
+  include: true
+---
+
+# Viral replication, a pilot experiment
+
+Imagine you are interested in quantifying viral growth rates in cell culture. Your experiments consist of inoculating monolayers of cells in culture with a virus and then taking samples every day or two. You then measure the amount of virus in those samples with plaque assays, TCTrial~50~ assay, or quantitative realtime PCR. The analysis looks pretty easy on the surface since we expect the virus to grow exponentially, at least over the timescale of these studies. The amount of virus at any time, $V(t)$ is expected to be:
+
+$$
+V(t) = V_0 e^{rt},
+$$
+where $V_0$ is the initial amount of virus and $r$ is the intrinsic growth rate, which is what we want to estimate. If we take the log of both sTriales we get:
+$$
+\log(V(t)) = \log(V_0) + rt,
+$$
+meaning that we can simply regress the log of virus against time and the slope should estimate $r$. 
+
+Reality is, of course, a bit more complicated. There is measurement error, which are willing to assume is more or less normally distributed on the log scale with a standard deviation of $\sigma$. But more importantly, there is likely a lot of unmeasured stuff that affects the growth rate in a given trial. For instance, maybe there are slightly more or fewer cells in better or worse conditions. Thus, being a good and careful researcher you decTriale to run a pilot experiment where you repeat this basic experiment in five times (=5 trials) to make sure you can get a reasonable estimate of the growth rate.
+
+Let's simulate data for this pilot experiment:
+```{r}
+n_trials <- 5 
+days <- c(1,3,5) # days we sample
+r_trials <- rnorm(n=n_trials, mean=1.5, sd=0.2) # True r's for each trial
+sigma <- 0.5 # measurment error
+lV0 <- 4.5 # initial amount of virus
+
+# simulate data on the log scale
+df <- expand.grid(Trial = 1:n_trials, 
+                  days = days)
+df$lV <- rnorm(n=nrow(df), 
+               mean=lV0 + r_trials[df$Trial]*df$days, 
+               sd=sigma)
+
+plot(lV ~ days, data=df, type = "n")
+for(i in 1:n_trials){
+  points(lV ~ days, data=df[df$Trial==i,], type = "b")
+}
+```
+
+## A first hierarchical or multilevel model
+So now, let's fit a model to these data. It must account for the fact that the growth rates vary a bit between trials. We'll assume that we were very good at starting all of the trials with the exact same amount of virus, so our estimate of the intercept ($V_0$) should be common among all of the trials.
+
+$$
+\begin{align}
+\log(V) &\sim \text{Normal}(\mu, \sigma) \\
+\mu &= a + b[\text{Trial}]\times \text{time} \\
+a &\sim  \text{Normal}(4,1) \\
+b[\text{Trial}] &\sim  \text{Normal}(\mu_{b}, \sigma_b) \\
+\mu_{b} &\sim  \text{Normal}(1,1) \\
+\sigma_{b} &\sim  \text{Exponential}(3) \\
+\sigma &\sim  \text{Exponential}(2) \\
+
+
+\end{align}
+$$
+So our model assumes that the slopes, the `b`s in the model, are coming from a normal distribution with a mean, $\mu_{b}$, and standard deviation, $\sigma_{b}$, that are themselves parameters with their own hyper priors. 
+
+Here it is in `ulam()` style:
+```{r}
+#| results: hide
+#| message: false
+library(rethinking)
+m1 <- ulam(
+  alist(
+    lV ~ dnorm(mu, sigma),
+    mu <- a + b[Trial]*days,
+    
+    # priors for initial amount of virus
+    a ~ dnorm(4, 1),
+    
+    # priors for growth rate
+    b[Trial] ~ dnorm(b_mu, b_sig), 
+    b_mu ~ dnorm(1, 1), 
+    b_sig ~ dexp(3),    
+    
+    # prior for observation error
+    sigma ~ dexp(2)
+  ), data = df
+)
+```
+
+The indexing is by `df$Trial`, which simply pulls out the right value of the slope from the vector, `b`. 
+
+Let's see what we got focusing on whether we did a good job of estimating the parameters, in particular the average and standard deviation in growth rates. 
+```{r}
+precis(m1)
+
+samples1 <- extract.samples(m1)
+
+# mean of the growth rates
+hist(samples1$b_mu, breaks=50)
+abline(v=1.5, col="red")
+
+# standard deviation of growth rates
+hist(samples1$b_sig, breaks=50)
+abline(v=0.2, col="red")
+
+# standard deviation of measurement error
+hist(samples1$sigma, breaks=50)
+abline(v=0.5, col="red")
+```
+
+So our model's estimates seem to encompass the True parameters, which is good. But what about the estimates of the growth rates for each individual trial? We can see the summary statistics with the `depth=2` flag:
+```{r}
+precis(m1, depth=2)
+```
+And we can actually get their posterior draws with a bit of care:
+```{r}
+str(samples1)
+for(i in 1:n_trials){
+  hist(samples1$b[,i], breaks=50, 
+       main = paste("Trial",i))
+  abline(v=r_trials[i], col="red")
+}
+```
+
+So we are getting _close_ for most of the trials, and if there is a bias it is generally towards the mean of the distribution.
+```{r}
+precis(m1, pars="b_mu")
+mean(colMeans(samples1$b))
+```
+See that both the overarching mean in our model, `b_mu` ($\mu_b$), and the mean across the estimates for each trial (the `b`'s) are essentially the same. This is not surprising given that we simulated everything from a nice, normal distribution. Often this will not quite be the case.
+
+It is worth examining our model fitting a bit closer. You _might_ have seen a warning about a divergent transition or two. Let's start with the `pairs()` plot. 
+
+```{r}
+#| warning: false
+pairs(m1)
+```
+
+Notice that there is almost always a negative correlation between the intercept, which represents the starting amount of virus, and the slope. We've seen this before, so that shouldn't be too surprising. 
+
+We can see a bit more if we use the `rstan` version of pairs (it might be slow... it's showing you a lot!)
+```{r}
+#| warning: false
+pairs(m1@stanfit)
+```
+One thing to note about this, The plots above the diagonal show the transitions above the median acceptance probability (and thus likely to became part of the posterior) and those below the diagonal were those below the median acceptance probability. Remember, we have some probability of acceptance and so some just won't be accepted even though they were fine. The plots above and below the diagonal will generally look similar. If they don't, that suggests issues.
+
+You will also see graphs for `lp__` (log-posterior probability) and `energy__`, which stems from this being a Hamiltonian simulation. I'll leave these for now, though you'll see reference to them in a lot of trouble-shooting guides.
+
+We will also see as red points any divergent transitions. Their location in relation to parameter values can be illuminating. For instance, do they show up close to parameter boundaries? Only with particular combinations of parameter values?
+
+## A non-centered version of your model
+
+Our model so far is the "centered" version, where the different values of `b` are drawn from a distribution centered on the mean value, `b_mu`, with standard deviation, `b_sigma`. This is the mathematical version:
+$$
+\begin{align}
+b[\text{Trial}] &\sim  \text{Normal}(\mu_{b}, \sigma_b) \\
+\mu_{b} &\sim  \text{Normal}(1,1) \\
+\sigma_{b} &\sim  \text{Exponential}(3) 
+\end{align}
+$$
+I would like you to convince yourself that this is the same this _non_-centered version:
+$$
+\begin{align}
+b[\text{Trial}] &= \mu_{b} + \sigma_b \times z[\text{Trial}] \\
+\mu_{b} &\sim  \text{Normal}(1,1) \\
+\sigma_{b} &\sim  \text{Exponential}(3) \\
+z &\sim\text{Normal}
+\end{align}
+$$
+
+Let's generate some possible values of `b` from both methods and verify that they're the same. 
+```{r}
+# These two priors are the same in both versions
+mu_bs <- rnorm(1e4, mean=1, sd=1)
+sigma_bs <- rexp(1e4, rate=3)
+
+# priors for b in the centered version
+hist( rnorm(n=1e4, mean=mu_bs, sd=sigma_bs), breaks = 50)
+# priors for b in the non-centered version
+hist( mu_bs + sigma_bs*rnorm(n=1e4, mean=0, sd=1), breaks = 50, 
+      add = TRUE, 
+      col = NA, border = "red")
+```
+
+Repeat this a few times to convince yourself that these are the same. 
+
+Let's apply this to our model now.
+```{r}
+#| results: hide
+m1.nc <- ulam(
+  alist(
+    lV ~ dnorm(mu, sigma),
+    mu <- a + b*days,
+    
+    # priors for initial amount of virus
+    a ~ dnorm(4, 1),
+    
+    # priors for growth rate
+    b <- b_mu + b_sig*z[Trial], # construct our estimates of b
+    b_mu ~ dnorm(1, 1), 
+    b_sig ~ dexp(3),    
+    z[Trial] ~ dnorm(0,1),
+    
+    # prior for observation error
+    sigma ~ dexp(2)
+  ), data = df
+)
+```
+
+::: {.callout-tip}
+## Your turn
+
+We have two versions of our model that are identical, in theory any way. I'd like you to convince yourself of this. Examine and compare the posteriors as well as metrics of model-fitting (e.g., divergences, correlation among parameters, mixing of chains [though I haven't been using multiple chains in my code]).
+:::
+
+# Replication of multiple virus strains
+
+We've done our pilot experiment, but in the end we'd like to be able to estimate viral growth rates more generally, rather than for our single virus strain. We don't think all virus strains are identical, but we also don't think that they're too different. We'd like to account for this structure. 
+
+So now let's imagine we had seven virus strains, and we ran our experiment with three trials each (5 seemed like too much work!).
+
+```{r}
+n_trials <- 3
+n_strains <- 5
+days <- c(1,3,5) # days we sample
+
+# create growth rates for each strain & trial-specific variation
+r_strains <- rnorm(n=n_strains, 
+                   mean=1.5, 
+                   sd = 0.4)
+r_trials <- rnorm(n=n_trials*n_strains, # 3 trials per virus
+                 mean=0, 
+                 sd=0.2) 
+sigma <- 0.5 # measurement error
+lV0 <- 4.5 # initial amount of virus
+
+# simulate data on the log scale
+df <- expand.grid(Strain=1:n_strains, days = days, 
+                  Trial = 1:n_trials)
+# this is weird, but it works
+df$Trial <- as.integer(factor(paste(df$Strain, df$Trial)))
+
+df$lV <- rnorm(n=nrow(df), 
+               mean=lV0 + 
+                 (r_strains[df$Strain] + r_trials[df$Trial])*df$days, 
+               sd=sigma)
+
+plot(lV ~ days, data=df, type = "n")
+for(i in 1:(n_trials*n_strains)){
+  points(lV ~ days, data=df[df$Trial==i,], 
+         type = "b", 
+         col = c("red", "orange", "green", "blue", "purple")[df$Strain[df$Trial==i]])
+}
+```
+
+So here's our data. We want to modify our model to account for the fact that every strain has its own growth rate, but then this is modified a bit by the fact that trials vary a bit.
+
+$$
+\begin{align}
+\log(V) &\sim \text{Normal}(\mu, \sigma) \\
+\mu &= a + (b[\text{Strain}] + \delta[Trial])\times \text{time} \\
+a &\sim  \text{Normal}(4,1) \\
+b[\text{Strain}] &\sim  \text{Normal}(\mu_{b}, \sigma_b) \\
+\mu_{b} &\sim  \text{Normal}(1,1) \\
+\sigma_{b} &\sim  \text{Exponential}(2) \\
+\delta[\text{Trial}] &\sim \text{Normal}(0, \sigma_\delta) \\
+\sigma_\delta &\sim \text{Exponential}(3) \\
+\sigma &\sim  \text{Exponential}(2) \\
+\end{align}
+$$
+So you will see that our effective slope is now the sum of both the strain-specific growth rate, represented by $(b[\text{Strain}]$, and a bit of noise from the trial, represented by $\delta[Trial]$. Notice that $\delta[Trial]$ is coming from a distribution centered on zero---these are just deviations from the expectation for a strain---with a standard deviation that is learned, that is, it has a hyper prior, $\sigma_\delta$.
+
+::: {.callout-tip}
+## Your turn
+With the model described this way, I'd like you to try to implement it in `ulam()`. Start with the centered version and, if need be, transition to a non-centered version. 
+
+* Does this model estimate parameter values close to the True values? Does it get some and not others? 
+* Are there issues with fitting or convergence?
+* Given this model, what is your best prediction for the growth rate of a new virus strain?
+:::
