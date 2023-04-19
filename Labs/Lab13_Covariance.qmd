@@ -1,0 +1,467 @@
+---
+title: "Lab 13: Models with covarying parameters"
+author: "Jesse Brunner"
+date: "`r Sys.Date()`"
+format: 
+  html:
+    toc: true
+    embed-resources: true
+    code-fold: false
+execute:
+  include: true
+---
+
+# Return to viral replication
+
+Last time we imagined were were interested in quantifying viral growth rates in cell culture, eventually considering multiple strains with growth rates, $r$, that varied somewhat from an average. However, we made a simplifying assumption, which was that the initial amount of virus infecting cells would be the same. This might be true to the extent that we can control the dose of inoculum. However, different virus strains might be better at infecting cells than others, resulting in larger initial virus populations, $V_0$. 
+
+We would like to estimate both $r$ and $V_0$ for each virus strain, assuming they come from a common distribution. 
+
+# Our (fake) study
+
+Let's pretend our study looks like this:
+
+* ten strains of virus grown in cell culture 
+* take samples on days 1, 3, and 5 and titer the virus
+* expect strains to vary in their growth rates
+* Moreover, we expect that some viruses might be very infectious, and so have a high $V_0$, but this might come at the expense of a low growth rate, $r$. Indeed, this might be the _goal_ of our study.
+
+Most of this is just like last time. The hard part is that we need to simulate data where $r$ and $V_0$ for each strain are _correlated._ This is not super straight forward. But let's start with the simple stuff.
+
+```{r, include=TRUE}
+#| echo: true
+
+set.seed(42) # for reproducability
+
+r_mu <- 1.5 # mean growth rate
+r_sig <- 0.5 # sd of growth rate
+lV0_mu <- 4.6 # mean initial virus population = log(100) 
+lV0_sig <- 1.5 # sd of initial virus population
+rho <- -0.65 # correlation between lV0 and r
+
+# vector of means
+Mu <- c(lV0_mu, r_mu)
+# vector of standard deviations
+sigmas <- c(lV0_sig, r_sig)
+```
+
+So far so good, but how do we make sure that our draws of parameters are _correlated_? 
+
+In essence, we want to draw parameter values from a 2-dimensional normal distribution (one dimension for $V_0$ and one for $r$). Let's see what a 2-d normal looks like.
+
+First just run this code.
+```{r}
+#| message: false
+library(ellipse)
+library(rethinking)
+# standard deviations of the distribution in the x & y directions
+sigmas <- c(1, 1.25)
+# correlation between x & y
+rho <- -0.5
+
+# correlation matrix
+( Rho <- matrix( c(1, rho, 
+                  rho, 1), 
+                ncol=2, byrow=TRUE) )
+# covariance matrix
+( Sigma <- diag(sigmas) %*% Rho %*% diag(sigmas) )
+
+# set plotting boundaries
+plot(x=c(-3,3), y=c(-3,3), type = "n", 
+     xlab="x", ylab="y")
+# add contours for each probability level
+for ( l in (1:9)/10){
+  lines(ellipse(Sigma, centre=c(0,0), level=l),
+        col=col.alpha("black",1-l))  
+}
+```
+The darker lines are higher (more probable) than the lighter lines. It's meant to be sort of 3D.
+
+Now play with the values in `sigmas` and `rho` to get a sense of how these affect the shape of this 2-dimensional normal distribution. See how these influence the shape?
+
+Then add in a third dimension and convince yourself that this is general^[Just kidding.]. 
+
+## an aside on constructing the covariance matrix
+The line in our code:
+
+`Sigma <- diag(sigmas) %*% Rho %*% diag(sigmas)`
+
+constructs a covariance matrix using matrix multiplication. Multiplying two $2\times 2$ matrices works like this. You simply^[Yeah, right!] multiply the elements of the first row of the first matrix by the first column of the second matrix and add the two bits, then move on to the first row of the first matrix and multiply by the second column of the second matrix and add the bits, and so on. 
+
+Or, maybe this helps: 
+$$
+\begin{bmatrix}
+a & b \\
+c & d
+\end{bmatrix} \times
+\begin{bmatrix}
+e & f \\
+g & h
+\end{bmatrix} = 
+\begin{bmatrix}
+ae +bg & af + bh \\
+ce + dg & cf + dh
+\end{bmatrix}
+$$
+If we replace the first matrix with our matrix of standard deviations (see what `diag(sigmas)` produces) and the second matrix with our correlation matrix, `Rho`, we get:
+$$
+\begin{bmatrix}
+\sigma_x & 0 \\
+0 & \sigma_y
+\end{bmatrix} \times
+\begin{bmatrix}
+1 & \rho \\
+\rho & 1
+\end{bmatrix} = 
+\begin{bmatrix}
+\sigma_x \times 1 +0 \times \rho & \sigma_x \times \rho + 0 \times 1 \\
+0 \times 1 + \sigma_y \times \rho & 0 \times \rho + \sigma_y \times 1
+\end{bmatrix} \\
+=\begin{bmatrix}
+\sigma_x  & \sigma_x  \rho \\
+\sigma_y \rho & \sigma_y
+\end{bmatrix} \\
+$$
+
+Then we multiply this matrix by the the first one, the `diag(sigmas)` one.
+
+$$
+\begin{bmatrix}
+\sigma_x  & \sigma_x  \rho \\
+\sigma_y \rho & \sigma_y
+\end{bmatrix} \times 
+\begin{bmatrix}
+\sigma_x & 0 \\
+0 & \sigma_y
+\end{bmatrix}  = 
+\begin{bmatrix}
+\sigma_x \times \sigma_x + \sigma_y \rho \times 0 & \sigma_x \times 0 + \sigma_x  \rho \times \sigma_y \\
+\sigma_y \rho \times \sigma_x + \sigma_y \times 0 & \sigma_y \rho \times 0 + \sigma_y \times \sigma_y
+\end{bmatrix} \\
+= 
+\begin{bmatrix}
+\sigma_x^2  & \rho \sigma_x  \sigma_y \\
+\rho \sigma_x  \sigma_y & \sigma_y^2
+\end{bmatrix}
+$$
+So, to recap, we can write our covariance matrix as a product of the diagonal matrix of our standard deviations and our correlation matrix, like so:
+
+$$
+\begin{bmatrix}
+\sigma_x & 0 \\
+0 & \sigma_y
+\end{bmatrix} \times
+\begin{bmatrix}
+1 & \rho \\
+\rho & 1
+\end{bmatrix} \times 
+\begin{bmatrix}
+\sigma_x & 0 \\
+0 & \sigma_y
+\end{bmatrix} = 
+\begin{bmatrix}
+\sigma_x^2  & \rho \sigma_x  \sigma_y \\
+\rho \sigma_x  \sigma_y & \sigma_y^2
+\end{bmatrix}
+$$
+
+This is a pain to do by hand, but computers are pretty good at it^[I've yet to find one that made a mistake!]. We'll see and use this formulation a lot. Anyway...
+
+## Simulating (parameters) from a multivariate normal
+
+We can use a bivariate normal to draw correlated values of $V_0$ (=x-value) and $r$ (=y-value). Just provide appropriate means (instead of `c(0,0)`), standard deviations (in `sigmas`), and the correlation between them (`rho`). 
+
+Let's see how it's done, using the `mvrnorm()` function in the `MASS` package.
+```{r}
+nS <- 10 # number of strains
+
+params <- MASS::mvrnorm(n=nS, mu=Mu, Sigma=Sigma)
+colnames(params) <- c("lV0", "r")
+(params <- as.data.frame(params))
+```
+
+For fun, let's plot these on the ellipses we used already
+```{r}
+plot(r ~ lV0, data=params)
+# add contours for each probability level
+for ( l in (1:9)/10){
+  lines(ellipse(Sigma, centre=Mu, level=l),
+        col=col.alpha("black",1-l))  
+}
+```
+
+Remember, each of these points is a True value of parameters ($V_0$ and $r$) for a particular virus strain.
+
+## Simulating data
+Phew! We are finally ready to simulate data. 
+
+```{r}
+day <- c(1,3,5) # time points
+sigma <- 0.1 # observation error
+
+df <- expand.grid(ID = 1:nS,
+                  day = day)
+df$lV <- rnorm(n=nrow(df), 
+                 mean=params$lV0[df$ID] + params$r[df$ID]*df$day, 
+                 sd=sigma)
+```
+
+And we can plot these made up data:
+```{r}
+plot(lV ~ day, data=df, type = "n")
+for(i in 1:nS){
+  points(lV ~ day, data=df[df$ID==i,], type = "b")
+}
+```
+
+# First stab at an analysis, with independent parameters 
+
+We have the tools already to fit a model where both the intercept (=$V_0$) and the slope (=$r$) for each virus strain are drawn from distributions. Let's implement this first. 
+
+```{r}
+#| echo: true
+#| results: false
+#| message: false
+#| warning: true
+m1 <- ulam(
+  alist(
+    lV ~ dnorm(mu, sigma), 
+    mu <- a[ID] + b[ID]*day,
+    
+    # priors
+    a[ID] ~ dnorm(a_mu, a_sd),
+    a_mu ~ dnorm(4,1.5),
+    a_sd ~ dexp(2),
+    
+    b[ID] ~ dnorm(b_mu, b_sd),
+    b_mu ~ dnorm(1,1),
+    b_sd ~ dexp(3),
+    
+    sigma ~ dexp(2)
+  ), data = df, chains=4, cores=4
+)
+```
+
+```{r}
+precis(m1)
+post1 <- extract.samples(m1)
+
+# mean lV0
+dens(post1$a_mu)
+abline(v=Mu[1]) # True value
+# sd of lV0
+dens(post1$a_sd)
+abline(v=sigmas[1]) # True value
+
+# mean r
+dens(post1$b_mu)
+abline(v=Mu[2]) # True value
+# sd of r
+dens(post1$b_sd)
+abline(v=sigmas[2]) # True value
+```
+
+We seem to be doing a pretty good job of estimating the True parameter values for the distributions of the starting virus population size and growth rates, even without accounting for the correlation structure in those parameters. 
+
+Dig a bit into the `precis(m1, depth=2)` output to make sure you see what's what.
+
+Now let's examine the estimates for $V_0$ and $r$ for each strain, relative to the True (fake) parameters we used to simulate data. 
+
+```{r}
+# get the mean of the posterior for each parameter for strain
+est1 <- data.frame(lV0 = colMeans(post1$a), 
+                  r = colMeans(post1$b)
+)
+
+# plot the True values
+plot(r ~ lV0, data = params, pch=20)
+# add in our estimates
+points(est1$lV0, est1$r, col = "red")
+# Draw a line from the estimate to the true point
+for ( i in 1:nS ){
+  lines( c(params$lV0[i],est1$lV0[i]) ,
+         c(params$r[i],est1$r[i]), col = "red") 
+}
+# add contours for each probability level
+for ( l in (1:9)/10){
+  lines(ellipse(Sigma, centre=Mu, level=l),
+        col=col.alpha("black",1-l))  
+}
+```
+
+Not bad! Now let's try this same model, only allowing for a correlation between parameters.
+
+# Second stab at our analysis, with covarying parameters
+
+I'm just going to launch into the code. Note that pairs of parameters, `a` and `b`, are drawn together from the multivariate normal for each strain, similar to how we simulated data, above. 
+The only other addition is a prior for the correlation coefficient, which is the `lkj_corr()` call. We'll see some code, below, for simulating values from the LKJ distribution, but for now let's just run the model.
+
+```{r}
+#| echo: true
+#| results: hide
+#| message: false
+#| warning: true
+m2 <- ulam(
+  alist(
+    lV ~ dnorm(mu, sigma), 
+    mu <- a[ID] + b[ID]*day,
+    
+    # priors
+    c(a, b)[ID] ~ multi_normal( c(a_mu, b_mu), Rho, sigma_ID),
+    a_mu ~ dnorm(4,1.5),
+    b_mu ~ dnorm(1,1),
+    sigma_ID ~ dexp(2),
+    
+    Rho ~ lkj_corr(2),
+    sigma ~ dexp(2)
+  ), data = df, chains=4, cores=4
+)
+```
+
+```{r}
+precis(m2, depth=2, pars = c("a_mu", "b_mu", "sigma_ID", "sigma"))
+```
+
+The estimates, at a course level, looks similar to what we observed in `m1` (recognizing that `sigma_ID[1]` $\approx$ `a_sd` and `sigma_ID[2]` $\approx$ `b_sd`). 
+
+
+::: {.callout-tip}
+## Your turn
+We've compared the mean and standard deviations of the distributions of `a` (representing $\log(V_0)$) and `b` (representing $r$) between models `m1` and `m2`. But we know that the posteriors are _distributions_. I would like you to graphically compare the actual distributions of these parameter estimates between the two models. Are they very close? A bit divergent?
+:::
+
+This second model included the covariation (or correlation) between the parameters `a` and `b` for each strain. How well did we do at estimating those?
+
+```{r}
+post2 <- extract.samples(m2)
+
+# histogram of the estimated correlation
+dens( post2$Rho[,1,2], xlim=c(-1,1))
+
+# put in a line for the True correlation
+abline(v=rho, col = "grey")
+text(x=rho, y=0.5, adj=c(-0.05, 1), 
+     labels = "True rho", col = "grey")
+# and add a line for the correlation among True parameters
+abline(v=with(params, cor(lV0, r)))
+text(x=with(params, cor(lV0, r)), y=0.25, adj=c(-0.05, 1), labels = "Emperical rho")
+
+# add in the priors
+R <- rlkjcorr(1e4, K=2, eta=2)
+dens(R[,1,2], add=TRUE, lty=2)
+```
+
+That wasn't bad! Note that we have a True value of the correlation between `a` and `b`, `rho` = `r rho`, but then there is the empirical value this correlation between the values of `a` and `b` we simulated for the `nS` = `r nS` strains, which I'm also plotting. The model can only know about the True correlation due to its influence on the empirical (but unknown except in simulation) values of those parameters, so that's a bit more relevant and we do a pretty good job of estimating it. As the number of strains increase we should see the empirical values converge on the True value.   
+
+Anyway, let's look at our posterior estimates of $V_0$ and $r$ for each strain. How much do they differ from our prior model?
+
+```{r}
+# get the mean of the posterior for each parameter for strain
+est2 <- data.frame(lV0 = colMeans(post2$a), 
+                  r = colMeans(post2$b)
+)
+
+# plot the True values
+plot(r ~ lV0, data = params, pch=20)
+# add in our estimates
+points(est1$lV0, est1$r, col = "red")
+points(est2$lV0, est1$r, col = "blue")
+# Draw a line from the estimate to the true point
+for ( i in 1:nS ){
+  lines( c(params$lV0[i],est1$lV0[i]) ,
+         c(params$r[i],est1$r[i]), col = "red") 
+  lines( c(params$lV0[i],est2$lV0[i]) ,
+         c(params$r[i],est2$r[i]), col = "blue") 
+}
+# add contours for each probability level
+for ( l in (1:9)/10){
+  lines(ellipse(Sigma, centre=Mu, level=l),
+        col=col.alpha("black",1-l))  
+}
+```
+
+It looks like, at least under the conditions of our simulation, our estimates of the strain-specific parameters is very, very similar. So what have we obtained? I would say two things: 1) piece of mind that we accounted for the (likely) relationship among parameters, and 2) an estimate of this correlation that accounts for uncertainty in everything all throughout our study. Both are worthwhile.
+
+
+
+::: {.callout-tip}
+## Your turn 
+
+At least in my simulation we didn't see much difference between the two models we considered. I wonder how general this is. Try repeating our analyses using four different data sets, simulated using:
+
+1. `nS=5` strains and `rho = -0.8`
+2. `nS=5` strains and `rho = -0.2`
+3. `nS=25` strains and `rho = -0.8`
+4. `nS=25` strains and `rho = -0.2`
+
+Do sample size or the strength of the correlation (or both) cause the two models, `m1` without correlation and `m2` with correlation, to diverge in their predictions and estimates?
+:::
+
+# A non-centered version of the covariance model
+
+There's a reasonable chance that certain data sets in the "Your turn" exercise caused the models to have problems fitting---divergences, low `n_eff`, high `Rhat4`, or other warnings. If not in this case, I'd guarantee it will happen sometime in the future. In these situations it is useful to have a non-centered version of the model to pull out. 
+
+In principle, this is very similar to how we've constructed non-centered versions in the past, but the code looks quite different. Rather than focusing on all of the arguments, let's simply create a working model, with a few comments, which you can examine or adapt in the future. 
+
+```{r}
+#| echo: true
+#| results: false
+#| message: false
+m2b <- ulam(
+  alist(
+    lV ~ dnorm(mu, sigma), 
+    # intercept is the mean + strain-specific deviation
+    #                         slope is the mean + strain-specific deviation 
+    mu <- (a_mu + alpha[ID, 1]) + (b_mu + alpha[ID, 2])*day,
+    
+    # priors
+    # adaptive priors - non-centered
+    # generates a matrix of deviations with nS rows and 2 columns
+    transpars> matrix[ID, 2]:alpha <-
+      compose_noncentered( sigma_ID, L_Rho_ID, z_ID),
+    
+    # normal deviates, two for each strain
+    matrix[2,ID]:z_ID ~ normal( 0 , 1 ),
+    
+    # normal priors
+    a_mu ~ dnorm(4,1.5),
+    b_mu ~ dnorm(1,1),
+    vector[2]:sigma_ID ~ dexp(2),
+    sigma ~ dexp(2),
+    
+    # a "decomposition" of the LKJ_corr matrix
+    cholesky_factor_corr[2]:L_Rho_ID ~ lkj_corr_cholesky(2),
+    
+    # compute ordinary correlation matrices from Cholesky factors
+    gq> matrix[2,2]:Rho_ID <<- Chol_to_Corr(L_Rho_ID)
+  ), data = df, chains = 4, cores = 4
+)
+```
+
+
+
+```{r}
+precis(m2)
+precis(m2b)
+```
+
+
+```{r}
+post2b <- extract.samples(m2b)
+
+# histogram of the estimated correlation
+dens( post2$Rho[,1,2], xlim=c(-1,1), col = "black")
+dens( post2b$Rho[,1,2], add=TRUE, col = "blue")
+dens(R[,1,2], add=TRUE, lty=2)
+
+# put in a line for the True correlation
+abline(v=rho, col = "grey")
+text(x=rho, y=0.5, adj=c(-0.05, 1), 
+     labels = "True rho", col = "grey")
+# and add a line for the correlation among True parameters
+abline(v=with(params, cor(lV0, r)))
+text(x=with(params, cor(lV0, r)), y=0.25, adj=c(-0.05, 1), labels = "Emperical rho")
+```
+
+
+This model should be pretty similar to the centered version, `m2`. Which one is "better" in terms of sampling efficiency will depend on the amount of data (and thus reliance on priors) and a few other details. As in all things in the class, there is no single "best" way to do things that applies everywhere. This is just another tool to use when needed. 
