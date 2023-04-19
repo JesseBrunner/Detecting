@@ -1,0 +1,389 @@
+---
+title: "Models with covarying parameters"
+author: "Jesse Brunner"
+format: 
+  revealjs:
+    embed-resources: true
+---
+
+## Example: Growing virus isolates {.smaller}
+
+```{r}
+
+library(tidyverse)
+library(rethinking)
+genPreds <- function(df, model, n=1e4, lo=0.055, hi=0.945){
+  # use link to generate preds
+  preds <- rethinking::link(fit=model, data=df, n=n)
+  # find average across preds for each column
+  meanpreds <- apply(X=preds, MARGIN=2, FUN = mean)
+  # add mean preds to data frame
+  df$preds_mean <- meanpreds
+  # find lower CI and add to df
+  df$preds_lo <- apply(X=preds, MARGIN=2, FUN = quantile, prob=lo)
+  # find upper CI and add to df
+  df$preds_hi <- apply(X=preds, MARGIN=2, FUN = quantile, prob=hi)
+  # return the data frame
+  return(df) 
+}
+
+set.seed(103)
+```
+
+Recall from lab that exponentially growing virus, $V$ should look like this:
+$$
+V(t) = V_0 e^{rt}
+$$
+which, on the log scale, is a nice linear model:
+$$
+\log[V(t)] = \log(V_0) + rt
+$$
+Our study:
+
+* ten strains of virus grown in cell culture 
+* take samples on days 1, 3, and 5 and titer the virus
+* expect strains to vary in their growth rates
+* Moreover, we expect that some viruses might be very infectious, and so have a high $V_0$, but this might come at the expense of a low growth rate, $r$. 
+
+
+## Simulating our example: how to deal with covariances 
+
+Need to simulate data where $r$ and $V_0$ are correlated for each strain.
+```{r, include=TRUE}
+#| echo: true
+r_mu <- 1.5 # mean growth rate
+r_sig <- 0.5 # sd of growth rate
+V0_mu <- 4.6 # mean initial virus population = log(100) 
+V0_sig <- 1.5 # sd of initial virus population
+rho <- -0.65 # correlation between V0 and r
+
+# vector of means
+Mu <- c(V0_mu, r_mu)
+# vector of standard deviations
+sigmas <- c(V0_sig, r_sig)
+
+```
+
+## Option 1 to build correlation matrix:
+```{r}
+#| echo: true
+# covariance of the two parameters
+(cov_V0r <- r_sig * V0_sig * rho)
+
+# covariance matrix
+(Sigma <- matrix( c(V0_sig^2, cov_V0r, 
+                    cov_V0r, r_sig^2), 
+                  ncol=2, byrow = TRUE))
+```
+
+## Option 2 to build correlation matrix:
+```{r}
+#| echo: true
+# first make correlation matrix
+(Rho <- matrix( c(1, rho, 
+                  rho, 1), 
+                ncol=2, byrow=TRUE))
+
+# Then matrix multiply to get covariance matrix
+(Sigma <- diag(sigmas) %*% Rho %*% diag(sigmas))
+```
+
+$$
+\begin{bmatrix}
+a & b \\
+c & d
+\end{bmatrix} \times
+\begin{bmatrix}
+e & f \\
+g & h
+\end{bmatrix} = 
+\begin{bmatrix}
+ae +bg & af + bh \\
+ce + dg & cf + dh
+\end{bmatrix}
+$$
+
+
+## Simulating our example: how to deal with covariances
+
+:::: {.columns}
+
+::: {.column width="40%"}
+Simulate parameters by group
+```{r}
+#| echo: true
+
+nS <- 20 # number of strains
+
+params <- MASS::mvrnorm(n=nS, mu=Mu, Sigma=Sigma)
+colnames(params) <- c("V0", "r")
+(params <- as.data.frame(params))
+```
+:::
+
+::: {.column width="60%"}
+```{r}
+#| echo: true
+
+plot(r ~ V0, data = params)
+```
+:::
+::::
+
+## Simulating our example: how to deal with covariances
+
+_Finally_ time to simulate observations!
+
+```{r}
+#| echo: true
+
+time <- c(1,3,5) # time points
+sigma <- 0.25 # observation error
+
+df <- expand.grid(ID = 1:nS,
+                  time = time)
+df$V <- rnorm(n=nrow(df), 
+                 mean=params$V0[df$ID] + params$r[df$ID]*df$time, 
+                 sd=sigma)
+```
+
+## Simulating our example: how to deal with covariances
+```{r}
+ggplot(df, aes(time, V, group = ID)) +
+  geom_point() + geom_line()
+```
+
+## Analysis goal
+
+Our research questions are:
+
+1. Do virus strains have substantially different $r$'s and $V_0$'s
+2. Are the $r$'s and $V_0$'s negatively correlated?
+
+
+_How would you analyze these data?_
+
+## Varying slopes and intercepts model  {.smaller}
+
+:::: {.columns}
+
+::: {.column width="50%"}
+a & b vary by clusters, but are independent
+$$
+\begin{align}
+\log(V_i) &\sim \text{Normal}(\mu_i, \sigma) \\
+\mu_i &= a_{\text{Strain}[i]} + b_{\text{Strain}[i]]}\times \text{time} \\
+a_{\text{Strain}} &\sim  \text{Normal}(\mu_{a},\sigma_a) \\
+b_{\text{Strain}} &\sim  \text{Normal}(\mu_{b}, \sigma_b) \\
+\mu_{a} &\sim  \text{Normal}(4,1.5) \\
+\sigma_{a} &\sim  \text{Exponential}(2) \\
+\mu_{b} &\sim  \text{Normal}(1,1) \\
+\sigma_{b} &\sim  \text{Exponential}(3) \\
+\sigma &\sim  \text{Exponential}(2)
+\end{align}
+$$
+:::
+
+::: {.column width="50%"}
+a & b vary by clusters, but are correlated
+$$
+\begin{align}
+\log(V_i) &\sim \text{Normal}(\mu_i, \sigma) \\
+\mu_i &= a_{\text{Strain}[i]} + b_{\text{Strain}[i]]}\times \text{time} \\
+\left[\begin{matrix} 
+a_{\text{Strain}} \\
+b_{\text{Strain}}
+\end{matrix} \right]  &\sim  \text{MVNormal}\left(\left[\begin{matrix} 
+\mu_{a} \\
+\mu_{b}
+\end{matrix} \right],\Sigma \right) \\
+\Sigma &= \left( \begin{matrix}
+\sigma_a & 0 \\
+0 & \sigma_b
+\end{matrix} \right) \text{Rho} \left( \begin{matrix}
+\sigma_a & 0 \\
+0 & \sigma_b
+\end{matrix} \right) \\
+
+\mu_{a} &\sim  \text{Normal}(4,1.5) \\
+\sigma_{a} &\sim  \text{Exponential}(2) \\
+\mu_{b} &\sim  \text{Normal}(1,1) \\
+\sigma_{b} &\sim  \text{Exponential}(3) \\
+\text{Rho} &\sim \text{LKJcorr}(2) \\
+\sigma &\sim  \text{Exponential}(2) 
+\end{align}
+$$
+:::
+
+::::
+
+
+## Varying slopes and intercepts model, in `ulam()`  {.smaller}
+:::: {.columns}
+
+::: {.column width="50%"}
+a & b vary by clusters, but are independent
+
+```{r}
+#| echo: true
+#| results: false
+m1 <- ulam(
+  alist(
+    V ~ dnorm(mu, sigma), 
+    mu <- a[ID] + b[ID]*time,
+    
+    # priors
+    a[ID] ~ dnorm(a_mu, a_sd),
+    a_mu ~ dnorm(4,1.5),
+    a_sd ~ dexp(2),
+    
+    b[ID] ~ dnorm(b_mu, b_sd),
+    b_mu ~ dnorm(1,1),
+    b_sd ~ dexp(3),
+    
+    sigma ~ dexp(2)
+  ), data = df
+)
+```
+
+:::
+
+::: {.column width="50%"}
+a & b vary by clusters, but are correlated
+
+```{r}
+#| echo: true
+#| results: false
+m2 <- ulam(
+  alist(
+    V ~ dnorm(mu, sigma), 
+    mu <- a[ID] + b[ID]*time,
+    
+    # priors
+    c(a, b)[ID] ~ multi_normal( c(a_mu, b_mu), Rho, sigma_ID),
+    a_mu ~ dnorm(4,1.5),
+    b_mu ~ dnorm(1,1),
+    sigma_ID ~ dexp(2),
+    
+    Rho ~ lkj_corr(2),
+    sigma ~ dexp(2)
+  ), data = df
+)
+```
+
+:::
+
+::::
+
+
+
+## Varying slopes and intercepts model, in `ulam()`  {.smaller}
+:::: {.columns}
+
+::: {.column width="50%"}
+a & b vary by clusters, but are independent
+
+```{r}
+#| echo: true
+precis(m1, depth=2)
+```
+:::
+
+::: {.column width="50%"}
+a & b vary by clusters, but are correlated
+
+```{r}
+#| echo: true
+precis(m2, depth=3)
+```
+
+## Did we estimate the correlation correctly?
+```{r}
+post1 <- extract.samples(m1)
+post2 <- extract.samples(m2)
+dens( post2$Rho[,1,2], xlim=c(-1,1))
+abline(v=0, col = "grey")
+
+abline(v=rho, lty=3)
+text(x=rho, y=2, adj=c(-0.05, 1), labels = "True rho")
+abline(v=with(params, cor(V0, r)))
+text(x=with(params, cor(V0, r)), y=1.5, adj=c(-0.05, 1), labels = "Emperical rho")
+
+R <- rlkjcorr(1e4, K=2, eta=2)
+dens(R[,1,2], add=TRUE, lty=2)
+
+```
+:::
+
+::::
+
+## Recovering the parameters
+```{r}
+df1 <- data.frame(V0 = colMeans(post1$a), 
+                  r = colMeans(post1$b)
+)
+df2 <- data.frame(V0 = colMeans(post2$a), 
+                  r = colMeans(post2$b)
+)
+
+plot(r ~ V0, data = params, pch=20)
+points(df1$V0, df1$r, col = "red")
+points(df2$V0, df2$r, col = "blue")
+
+for ( i in 1:nS ){
+  lines( c(params$V0[i],df1$V0[i]) ,
+         c(params$r[i],df1$r[i]), col = "red") 
+    lines( c(params$V0[i],df2$V0[i]) ,
+         c(params$r[i],df2$r[i]), col = "blue" ) 
+}
+
+# compute posterior mean bivariate Gaussian
+Mu_est <- c( mean(post2$a) , mean(post2$b) )
+rho_est <- mean( post2$Rho[,1,2] )
+sa_est <- mean( post2$sigma_ID[,1] )
+sb_est <- mean( post2$sigma_ID[,2] )
+cov_ab <- sa_est*sb_est*rho_est
+Sigma_est <- matrix( c(sa_est^2,cov_ab,cov_ab,sb_est^2) , ncol=2 )
+# draw contours
+library(ellipse)
+for ( l in c(0.1,0.3,0.5,0.8,0.99) )
+    lines(ellipse(Sigma_est, centre=Mu_est, level=l),
+        col=col.alpha("black",0.2))
+```
+red is estimate without correlation
+blue is estimate with correlation 
+
+## A non-centered versions
+
+```{r}
+#| echo: true
+#| results: false
+m3 <- ulam(
+  alist(
+    V ~ dnorm(mu, sigma), 
+    mu <- (a_mu + alpha[ID, 1]) + (b_mu + alpha[ID, 2])*time,
+    
+    # priors
+    # adaptive priors - non-centered
+    transpars> matrix[ID, 2]:alpha <-
+      compose_noncentered( sigma_ID, L_Rho_ID, z_ID),
+    
+    matrix[2,ID]:z_ID ~ normal( 0 , 1 ),
+    a_mu ~ dnorm(4,1.5),
+    b_mu ~ dnorm(1,1),
+    vector[2]:sigma_ID ~ dexp(2),
+    
+    cholesky_factor_corr[2]:L_Rho_ID ~ lkj_corr_cholesky(2),
+    sigma ~ dexp(2),
+    
+    # compute ordinary correlation matrices from Cholesky factors
+    gq> matrix[2,2]:Rho_ID <<- Chol_to_Corr(L_Rho_ID)
+  ), data = df
+)
+```
+
+```{r}
+precis(m2, depth=3, pars = c("Rho"))
+precis(m3, depth=3, pars = c("Rho_ID"))
+```
+
