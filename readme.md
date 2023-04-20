@@ -55,7 +55,7 @@ Tentative schedule (will be updated often, so check back)
 |       | Apr-12 |  Divergence and non-centered formulations   |    |  | [Lab 12 Models with memory](https://htmlpreview.github.io/?https://github.com/JesseBrunner/Detecting/blob/main/Labs/Lab12_ModelsMemory.html)|
 |       | Apr-13 | Multilevel models in your own system | | [Lecture 13](https://www.youtube.com/watch?v=sgqMkZeslxA&list=PLDcUM9US4XdPz-KxHM4XHt7uUVGWWVSus&index=13) |  |
 | Wk 15 | Apr-18 | Correlations among parameters within clusters | Ch. 14. Adventures in Covariance (pp 435-454)| [Lecture 14](https://www.youtube.com/watch?v=Es44-Bp1aKo&list=PLDcUM9US4XdPz-KxHM4XHt7uUVGWWVSus&index=14)| |
-|       | Apr-19 | Working with correlations, LKJ distribution, & non-centered versions | | | Lab 13|
+|       | Apr-19 | Working with correlations, LKJ distribution, & non-centered versions | | | [Lab 13](https://htmlpreview.github.io/?https://github.com/JesseBrunner/Detecting/blob/main/Labs/Lab13_Covariance.html)|
 |       | Apr-20 | Continuous correlation structure  | Ch. 14. Adventures in Covariance (pp 467-477) | [Lecture 16](https://www.youtube.com/watch?v=Y2ZLt4iOrXU)| |
 | Wk 16 | Apr-25 | Intro to missing data |  Ch. 15. Missing data & other opportunities (pp 491-512, 516-512| [Lecture 17](https://www.youtube.com/watch?v=mt9WKbQJrI4) & [Lecture 19](https://www.youtube.com/watch?v=Oeq6GChHOzc&list=PLDcUM9US4XdPz-KxHM4XHt7uUVGWWVSus&index=18)| |
 |       | Apr-26 |  | | | Lab 14 |
