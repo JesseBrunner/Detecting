@@ -1,0 +1,316 @@
+---
+title: "Models with continous covariance"
+author: "Jesse Brunner"
+format: 
+  revealjs:
+    embed-resources: true
+---
+
+```{r}
+#| include: false
+library(rethinking)
+library(dagitty)
+```
+
+## Another pond example {.smaller}
+
+:::: {.columns}
+
+
+::: {.column width="50%"}
+
+* Imagine we have a set of ponds on the Palouse 
+* We think productivity (g C / m^2^ / year) increases with pond area
+* However, nearby ponds share unobserved variables like:
+   - atmospheric deposition
+   - soil types
+   - algal or phytoplankton communities
+   - runoff
+   
+:::
+
+::: {.column width="50%"}
+
+```{r}
+#| fig-width:  2.5
+#| fig-height: 2.5
+#| fig-format: svg
+#| out-width: 100% 
+#| out-height: 55%
+dag1 <- dagitty("dag{
+Size -> Productivity <- U
+U [unobserved]
+}")
+coordinates(dag1) <- list(x=c(Size=1, Productivity=2, U=1.5),
+                         y=c(Size=1, Productivity=1, U=2))
+drawdag(dag1)
+```
+
+:::
+
+::::
+
+How do we account for nearness and thus shared unobserved correlations?
+
+## Enter the continuous covariance
+
+So far we have thought of the covariance in parameters (features) of distinct groups
+
+Here we will consider covariances in the deviations of groups from the prediction
+
+Want a function where covariance declines with distance between two points or ponds (or whatever)
+
+## The Gaussian version of covariance: {.smaller}
+
+:::: {.columns}
+
+::: {.column width="50%"}
+$$
+K_{i,j} = \eta^2 e^{-\rho^2 D_{i,j}^2} + \delta
+$$
+```{r}
+#| echo: true
+
+L2 <- function(x, eta, rho, delta){
+  eta^2 * exp(-rho^2 * x^2) + delta
+}
+```
+:::
+
+::: {.column width="50%"}
+```{r}
+#| fig-width: 4
+#| fig-height: 4
+#| out-width: 100%
+#| out-height: 100%  
+#| fig-format: svg
+curve(L2(x, eta=2, rho=1/2, delta = 0.1), 
+      ylab="Covariance", xlab="Distance",
+      from = 0, to = 4)
+text(x=1.8, y=2, adj=c(0,0), 
+     labels = expression(eta==2~rho==1/2))
+curve(L2(x, eta=2, rho=1, delta = 0.1), 
+      add = T, col = "red")
+text(x=1, y=1.5, adj=c(0,0), 
+     labels = expression(eta==2~rho==2), col="red")
+curve(L2(x, eta=1, rho=1, delta = 0.1), 
+      add = T, col = "blue")
+text(x=0.4, y=0.9, adj=c(0,0), 
+     labels = expression(eta==1~rho==2), col="blue")
+```
+:::
+
+::::
+
+## Simulate some ponds {.smaller}
+
+:::: {.columns}
+
+::: {.column width="50%"}
+```{r}
+#| echo: true
+
+# Positions in x and y directions
+set.seed(104)
+xs <- runif(n=10, 0, 10)
+ys <- runif(n=10, 0, 10)
+# pond sizes (NOT varying with position/nearness)
+sizes <- rnorm(n=10, mean=3, sd=1)
+```
+:::
+
+::: {.column width="50%"}
+```{r}
+#| fig-width: 4.5
+#| fig-height: 4.5
+#| out-width: 100%
+#| out-height: 100%  
+#| fig-format: svg
+plot(xs, ys, 
+     cex = sqrt(sizes),
+     xlim=c(0, 10), ylim=c(0, 10))
+text(x=xs, y=ys, 
+     labels = 1:10, 
+     adj = c(-0.5,-0.25))
+```
+:::
+
+::::
+
+## Calculate distances between pairs {.smaller}
+
+:::: {.columns}
+
+::: {.column width="50%"}
+```{r}
+#| echo: true
+D <- dist(as.matrix(cbind(xs, ys)))
+(D <- round( as.matrix(D), 2) )
+```
+:::
+
+::: {.column width="50%"}
+```{r}
+#| fig-width: 4.5
+#| fig-height: 4.5
+#| out-width: 100%
+#| out-height: 100%  
+#| fig-format: svg
+plot(xs, ys, 
+     cex = sqrt(sizes),
+     xlim=c(0, 10), ylim=c(0, 10))
+text(x=xs, y=ys, 
+     labels = 1:10, 
+     adj = c(-0.5,-0.25))
+```
+:::
+
+::::
+
+## Simulate data: covariances
+
+```{r}
+#| echo: true
+eta <-  0.7 # eta^2 is maximum covariance when D=0
+rho <- 0.5 # rate of decline in covariance
+delta <- 0
+round( Sigma <- L2(D, eta, rho, delta), 2 )
+```
+
+## Simulate data: observations | covariances {.smaller}
+
+:::: {.columns}
+
+::: {.column width="50%"}
+```{r}
+#| echo: true
+a <- 3 # intercept
+b <- 1 # slope
+mu <- a + b*(sizes-2.5) # predicted values
+
+p <- MASS::mvrnorm(n=1, 
+                   mu=mu, 
+                   Sigma = Sigma)
+```
+:::
+
+::: {.column width="50%"}
+```{r}
+#| fig-width: 4.5
+#| fig-height: 4.5
+#| out-width: 100%
+#| out-height: 100%  
+#| fig-format: svg
+plot(p ~ I(sizes-2.5), xlab="Size (centered on 2.5)", ylab="Productivity")
+text(x=sizes-2.5, y=p, labels = 1:10, adj = c(-0.5,-0.25))
+abline(a=a, b=b)
+```
+:::
+
+::::
+
+
+## A model: pond size only
+
+```{r}
+#| echo: true
+#| results: hide
+dat <- list(p=p, ID=1:10, size=sizes-2.5, D=D)
+
+m1 <- ulam(
+  alist(
+    p ~ normal(mu, sig),
+    mu <- a + b*size,
+    
+    # priors
+    a ~ normal(2,1), 
+    b ~ normal(0,1), 
+    sig ~ exponential(1)
+  ), data = dat, chains=4, cores=4
+)
+```
+
+```{r}
+precis(m1)
+```
+
+## A model: pond size + distance
+
+```{r}
+#| echo: true
+#| results: hide
+
+m2 <- ulam(
+  alist(
+    p ~ normal(mu, sig),
+    mu <- a + b*size + k[ID],
+    
+    # priors for covariances
+    vector[10]:k ~ multi_normal( 0 , SIGMA ),
+    matrix[10,10]:SIGMA <- cov_GPL2( D , etasq , rhosq , 0.01 ),
+    etasq ~ dexp( 2 ),
+    rhosq ~ dexp( 0.5 ),
+    
+    # other priors
+    a ~ normal(2,1), 
+    b ~ normal(0,1), 
+    sig ~ exponential(1)
+  ), data = dat, chains=4, cores=4
+)
+```
+
+```{r}
+precis(m2)
+```
+
+```{r}
+post1 <- extract.samples(m1)
+post2 <- extract.samples(m2)
+```
+
+## The Gaussian process
+
+```{r}
+#| out-width: 100% #| fig-format: svgin
+#| 
+curve(L2(x, 
+         eta=sqrt(rexp(1, rate=1)), 
+         rho=sqrt(rexp(1, rate=1)), 
+         delta=0), from = 0, to=10, 
+      col = col.alpha("grey", alpha = 0.1),
+      xlab="distance", 
+      ylab="Covariances", ylim = c(0,3)) 
+
+for(i in 2:2000){
+  curve(L2(x, 
+           eta=sqrt(rexp(1, rate=1)), 
+           rho=sqrt(rexp(1, rate=1)), 
+           delta=0), add=T, col = col.alpha("grey", alpha = 0.1))
+}
+
+for(j in 1:2000){
+  curve(L2(x, 
+           eta=sqrt(post2$etasq[j]), 
+           rho=sqrt(post2$rhosq[j]), 
+           delta = 0
+  ), 
+  add=T, 
+  col = col.alpha("blue", alpha = 0.1)
+  )
+}
+
+curve(L2(x, eta, rho, delta), add=T, col = "red")
+```
+
+black is prior and blue is posterior
+
+## Comparing models
+
+```{r}
+dens(post1$b, adj = 0.75, xlab="values of b")
+dens(post2$b, adj = 0.75, add=T, col = "blue")
+curve(dnorm(x, 0, 1), add = T, lty=2)
+abline(v=b, col="gray")
+```
+black is `m1` (without space) and blue is `m2` (distances)
+

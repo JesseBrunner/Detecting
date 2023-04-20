@@ -53,14 +53,14 @@ Need to simulate data where $r$ and $V_0$ are correlated for each strain.
 #| echo: true
 r_mu <- 1.5 # mean growth rate
 r_sig <- 0.5 # sd of growth rate
-V0_mu <- 4.6 # mean initial virus population = log(100) 
-V0_sig <- 1.5 # sd of initial virus population
-rho <- -0.65 # correlation between V0 and r
+lV0_mu <- 4.6 # mean initial virus population = log(100) 
+lV0_sig <- 1.5 # sd of initial virus population
+rho <- -0.65 # correlation between lV0 and r
 
 # vector of means
-Mu <- c(V0_mu, r_mu)
+Mu <- c(lV0_mu, r_mu)
 # vector of standard deviations
-sigmas <- c(V0_sig, r_sig)
+sigmas <- c(lV0_sig, r_sig)
 
 ```
 
@@ -68,11 +68,11 @@ sigmas <- c(V0_sig, r_sig)
 ```{r}
 #| echo: true
 # covariance of the two parameters
-(cov_V0r <- r_sig * V0_sig * rho)
+(cov_lV0r <- r_sig * lV0_sig * rho)
 
 # covariance matrix
-(Sigma <- matrix( c(V0_sig^2, cov_V0r, 
-                    cov_V0r, r_sig^2), 
+(Sigma <- matrix( c(lV0_sig^2, cov_lV0r, 
+                    cov_lV0r, r_sig^2), 
                   ncol=2, byrow = TRUE))
 ```
 
@@ -116,7 +116,7 @@ Simulate parameters by group
 nS <- 20 # number of strains
 
 params <- MASS::mvrnorm(n=nS, mu=Mu, Sigma=Sigma)
-colnames(params) <- c("V0", "r")
+colnames(params) <- c("lV0", "r")
 (params <- as.data.frame(params))
 ```
 :::
@@ -125,7 +125,7 @@ colnames(params) <- c("V0", "r")
 ```{r}
 #| echo: true
 
-plot(r ~ V0, data = params)
+plot(r ~ lV0, data = params)
 ```
 :::
 ::::
@@ -142,14 +142,14 @@ sigma <- 0.25 # observation error
 
 df <- expand.grid(ID = 1:nS,
                   time = time)
-df$V <- rnorm(n=nrow(df), 
-                 mean=params$V0[df$ID] + params$r[df$ID]*df$time, 
+df$lV<- rnorm(n=nrow(df), 
+                 mean=params$lV0[df$ID] + params$r[df$ID]*df$time, 
                  sd=sigma)
 ```
 
 ## Simulating our example: how to deal with covariances
 ```{r}
-ggplot(df, aes(time, V, group = ID)) +
+ggplot(df, aes(time, lV, group = ID)) +
   geom_point() + geom_line()
 ```
 
@@ -229,7 +229,7 @@ a & b vary by clusters, but are independent
 #| results: false
 m1 <- ulam(
   alist(
-    V ~ dnorm(mu, sigma), 
+    lV~ dnorm(mu, sigma), 
     mu <- a[ID] + b[ID]*time,
     
     # priors
@@ -256,7 +256,7 @@ a & b vary by clusters, but are correlated
 #| results: false
 m2 <- ulam(
   alist(
-    V ~ dnorm(mu, sigma), 
+    lV~ dnorm(mu, sigma), 
     mu <- a[ID] + b[ID]*time,
     
     # priors
@@ -306,8 +306,8 @@ abline(v=0, col = "grey")
 
 abline(v=rho, lty=3)
 text(x=rho, y=2, adj=c(-0.05, 1), labels = "True rho")
-abline(v=with(params, cor(V0, r)))
-text(x=with(params, cor(V0, r)), y=1.5, adj=c(-0.05, 1), labels = "Emperical rho")
+abline(v=with(params, cor(lV0, r)))
+text(x=with(params, cor(lV0, r)), y=1.5, adj=c(-0.05, 1), labels = "Emperical rho")
 
 R <- rlkjcorr(1e4, K=2, eta=2)
 dens(R[,1,2], add=TRUE, lty=2)
@@ -319,21 +319,21 @@ dens(R[,1,2], add=TRUE, lty=2)
 
 ## Recovering the parameters
 ```{r}
-df1 <- data.frame(V0 = colMeans(post1$a), 
+df1 <- data.frame(lV0 = colMeans(post1$a), 
                   r = colMeans(post1$b)
 )
-df2 <- data.frame(V0 = colMeans(post2$a), 
+df2 <- data.frame(lV0 = colMeans(post2$a), 
                   r = colMeans(post2$b)
 )
 
-plot(r ~ V0, data = params, pch=20)
-points(df1$V0, df1$r, col = "red")
-points(df2$V0, df2$r, col = "blue")
+plot(r ~ lV0, data = params, pch=20)
+points(df1$lV0, df1$r, col = "red")
+points(df2$lV0, df2$r, col = "blue")
 
 for ( i in 1:nS ){
-  lines( c(params$V0[i],df1$V0[i]) ,
+  lines( c(params$lV0[i],df1$lV0[i]) ,
          c(params$r[i],df1$r[i]), col = "red") 
-    lines( c(params$V0[i],df2$V0[i]) ,
+    lines( c(params$lV0[i],df2$lV0[i]) ,
          c(params$r[i],df2$r[i]), col = "blue" ) 
 }
 
@@ -360,7 +360,7 @@ blue is estimate with correlation
 #| results: false
 m3 <- ulam(
   alist(
-    V ~ dnorm(mu, sigma), 
+    lV~ dnorm(mu, sigma), 
     mu <- (a_mu + alpha[ID, 1]) + (b_mu + alpha[ID, 2])*time,
     
     # priors
