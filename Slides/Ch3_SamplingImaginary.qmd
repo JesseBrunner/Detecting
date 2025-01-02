@@ -1,0 +1,12 @@
+---
+title: "Ch3: Sampling the Imaginary"
+author: "Jesse Brunner"
+format: 
+  revealjs:
+    embed-resources: true
+---
+
+
+Calc posterior
+Use whole distribution
+posterior predictive distr

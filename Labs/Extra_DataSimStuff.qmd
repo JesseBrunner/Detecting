@@ -1,0 +1,107 @@
+---
+title: "Extra data simulation stuff"
+format: html
+---
+
+
+
+## Dice rolls with addition. 
+Imagine we were studying mites that hitch rides on the legs of ladybugs. Indeed, the mites are aggressive so that there can only be one mite per leg. Moreover, every ladybug has at least one mite^[You try coming up with examples that map perfectly onto dice! No, really! Let me know what you come up with!]. You go out and net a collection of ten lady bugs and put them in a bag, but unfortunately the mites do not stay on their hosts, so you only end up with the total number of mites. We can simulate this by rolling ten dice and counting up their total number. (What can you say about the minimum and maximum number of mites possible?) Let's do this 20 times, simulating 20 different groups of ten ladybugs each. _And please record the number on each dice because we need to re-use these._
+
+
+## Dice rolls with multiplication. 
+Imagine we were tracking a population that was growing in a stochastic environment. It starts with a single individual (maybe a selfing plant?) and at each time step the population might just stay the same, double, triple, quadruple, quintuple, or sextuple, each with equal chances. What would this population look like after 10 time steps? We can think of each time step as a roll of the dice (how convenient!) and their population size after 10 time steps as the product of ten dice. Let's use the previous dice rolls and just record the product from each round of rolling. 
+
+## Rice on a grid. 
+Let's simulate the number of trees that are infested with mistletoe, a parasitic plant, in each of 25 plots in an experiment forest. The plots are all similarly size and arranged in a grid, which is nice. Let's further imagine that the seeds that grow into these mistletoes are dispersed by birds that happen to be flying essentially randomly over the forest. If a bird happens to poop when it is above a tree, that tree then is infested with mistletoe. In our simulation we'll use rice to represent the infested trees and the grid on the floor to represent the forest plots. This is easy. We just need to 1) scatter rice over the grid randomly (I suggest tossing it over your shoulder so as to avoid bias) and 2) count the grains of rice in each grid cell. 
+
+## Clumpy rice on a grid. 
+Same thing as before, but now we're interested in counting the number of mistletoes themselves, not just the number of trees that are infested. This is tricky because when birds poop they can release 0, 1, 2, 3, or more mistletoe seeds. We'll simulate this by tossing rice clumps with varying numbers of grains in them. 
+
+
+
+
+We can also do the same with our other sorts of data. However, there is _not_ a distribution that maps perfectly onto the roll of a die. (There are some ways this approximates other distributions, which we'll see, but it's not a one-to-one mapping.)  To sample from a series of set outcomes, like the several sides of a die, we can use the `sample()` function. 
+
+```{r}
+# The outcome of ten dice
+# note that we are allowing replacement; faces are not removed when they are rolled
+sample(x=1:6, size=10, replace=TRUE)
+```
+
+If we want to construct a data set like our own dice rolling one, with ten dice rolled together in each of 100 rounds, we get to be a bit clever. Since each roll is independent of every other one, whether they are in the same round or not, we can just get $10 \times 10 = 200$ rolls and then organize them into groups of ten. 
+```{r}
+dice <- sample(x=1:6, size=10*100, replace=TRUE)
+
+dice <- matrix(dice, ncol=10)
+```
+
+Now we can sum (or multiply) across all of the rows (or vice versa if we organized this into 20 columns).
+```{r}
+dice_sum <- apply(X=dice, MARGIN=1, FUN=sum)
+
+hist(dice_sum, breaks=6:60)
+
+# OR
+ggplot(tibble(dice_sum=dice_sum), aes(dice_sum)) + 
+  geom_histogram(binwidth=1) + 
+  scale_x_continuous("Sum of dice", 
+                     limits=c(6,60), 
+                     breaks=(1:10)*6) + 
+  scale_y_continuous("Number of rounds with a sum of x ")
+```
+
+
+```{r}
+dice_prod <- apply(X=dice, MARGIN=1, FUN=prod)
+
+hist(dice_prod, breaks=50)
+
+# OR
+ggplot(tibble(dice_prod=dice_prod), aes(dice_prod)) + 
+  geom_histogram() + 
+  scale_x_continuous("Product of dice") + 
+  scale_y_continuous("Number of rounds with a product of x ")
+```
+
+Just for fun, let's change the x-axis to a $\log_{10}$ scale.
+```{r}
+last_plot() + scale_x_log10()
+```
+
+
+For the rice, we're back to some common distributions. First, the number of items in a given area (like rain drops on a sidewalk square) or events in a given amount of time (think clicks on a Geiger counter) that come from a random process happening at a constant rate (usually called $\lambda$) follows a Poisson distribution. In R we can use the `rpois()` function to simulate data from such a process.
+
+```{r}
+# Number of rice grains in each of 50 squares of a grid, 
+# with an average of 1.5 grains per square
+(rice <- rpois(n=50, lambda=1.5))
+
+hist(rice, breaks=-1:10) # note, need a negative break to see the zeros
+# OR
+
+ggplot(tibble(x=rice), aes(x)) + 
+  geom_histogram(binwidth=1) + 
+  scale_x_continuous("Number of rice grains per square", 
+                     limits=c(-1,8)) + 
+  scale_y_continuous("Number of squares with x rice grains")
+```
+
+Finally, we can think of our clumped rice example as a gamma-Poisson mixture, where the rain of rice is random, but the rate parameter, $\lambda$ itself varies from square-to-square according to a gamma distribution. If this doesn't mean anything to you, no worries. We'll come back to some of these mixture idea later. But we can also call this gamma-Poisson distribution a negative binomial distribution^[They arrive at the same place from different perspectives, but the math and distributions are the same. Indeed, there are something like a dozen ways to get to a negative binomial! So much for inferring process from pattern!]. Note that there are different ways to parameterize this, and many other distributions, but here we will think of the mean, $\mu$, and the "overdispersion" parameter, $k$, a.k.a. `size` in R. The smaller the value of $k$ or `size`, the more stretched out the distribution, with a few increasingly large values.
+```{r}
+# Number of rice grains from clumpy rice over 50 squares of a grid
+# with an average of 1.5 grains per square
+
+riceclumps <- rnbinom(n=50, mu=1.5, size=1)
+
+hist(riceclumps, breaks=-1:15) # note, need a negative break to see the zeros
+# OR
+
+ggplot(tibble(x=riceclumps), aes(x)) + 
+  geom_histogram(binwidth=1) + 
+  scale_x_continuous("Number of rice grains per square", 
+                     limits=c(-1,15)) + 
+  scale_y_continuous("Number of squares with x rice grains")
+```
+
+The point of all of this is not to beat you over the head with different distributions, but rather to highlight that there _are_ a lot of distributions---try `rnorm()`, `rgamma()`, `rchisq()`, for instance---that you can use to simulate data from. If you can think of a process that produces outcomes, you can probably simualate it!

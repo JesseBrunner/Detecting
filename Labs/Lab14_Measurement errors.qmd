@@ -1,0 +1,355 @@
+---
+title: "Lab 14: Dealing with measurement errors in our data"
+author: "Jesse Brunner"
+date: "`r Sys.Date()`"
+format: 
+  html:
+    toc: true
+    embed-resources: true
+    code-fold: false
+execute:
+  include: true
+---
+
+In all of our models so far we have been assuming that the predictors in our models are _perfect_. That is, while we acknowledge that we measure the responses with some error (e.g., we use a normal distribution to describe the sampling variation around some expectation or mean), we have not been doing the same with our predictor variables. Let's see if we can change that. 
+
+Before doing so, however, it is worth thinking about whether we should _always_ do this. After all, don't we (almost) always measure our predictors with some error, too? Even in experiments we try to apply, say, a given amount of fertilizer, but we don't do that perfectly. Should we acknowledge this in our models? 
+
+Like all things in statistical analyses, there are rarely simple, universal recommendations^[Other than `simulate it` and `think carefully`.]. One the one hand, if you have measured something fairly precisely, these errors aren't likely to introduce a lot of extra uncertainty, but, on the other hand, if instead there is a fair amount of measurement uncertainty then ignoring that would give you a false sense of precision. Perhaps more importantly is the question of whether measurement errors might introduce _bias_. If measurement errors are symmetric around the mean and not associated with particular values of predictors or the outcomes, then you might be safe^[But simulate it to be sure!]. If instead you measure small (or large) values with less precision, you have less precision in certain kinds of groups or treatments or outcomes (e.g., maybe you cannot meaure the size of animals that died as well as those that survived, or vice versa), then those measurement errors are likely going to bias your estimates of key relationships. Instead of guessing how safe you are or are not, it's best to draw your dag, simulate some data, and convince yourself (and your reviewers) that you're dealing with the issue correctly.
+
+# Simple measurement error
+
+## Tree seed rain
+
+For one of our final examples, let's imagine we were interested in plant reproductive output as a function of nitrogen in the soil. This might be an observational study or an experiment in which the soil was fertilized; it really doesn't matter for how we model it. But I guess so that we're all on the same page let's say it is an observational study and we are measuring the mass of seeds (rather than counts) in seed baskets around twenty trees. We also estimate the amount of free nitrogen in the soil by taking three soil samples, running some sort of test, and then averaging the quantities so we have a single value of N for each tree. 
+
+```{r}
+#| message: false
+library(dagitty)
+library(rethinking)
+
+Ndag <- dagitty("dag{
+N -> S
+}")
+coordinates(Ndag) <- list(
+  x=c(N=3,  S=6),
+  y=c(N=5,  S=5))
+drawdag(Ndag)
+```
+
+It's a pretty simple DAG, yes? But actually, we don't know the True amount of nitrogen in the soil, we just have observed values, so our DAG should look something like this
+```{r}
+Ndag2 <- dagitty("dag{
+e_N -> N_obs <- N -> S
+e_N [unobserved]
+N [unobserved]
+}")
+coordinates(Ndag2) <- list(
+  x=c(e_N=1, N_obs=1, N=3,  S=5),
+  y=c(e_N=1, N_obs=5, N=5,  S=5))
+drawdag(Ndag2)
+dev.off()
+```
+
+Here you can see that while N is what is causing seed production (S), we can only observe N~obs~, which is a function of (or caused by) the True, but unobserved value of N as well as some error process. 
+
+## Simulating data with observation error
+
+Let's simulate the data given this causal structure. It should echo what I just said, but it is also pretty much exactly how we'll model the data.
+
+```{r}
+set.seed(421)
+
+n <- 20 # number of trees
+Ntrue <-  rnorm(n=n, mean=5, sd=1.5) # True N (I have no idea what these should be!)
+
+# parameters of linear model
+a <- 3
+b <- 1
+
+Seeds <- rnorm(n=n, 
+              mean = a + b*(Ntrue-5), 
+              sd = 1)
+
+plot(Seeds ~ Ntrue)
+```
+
+So far this is just what we've done in the past. But the point (in this example) is that we do not observe N~true~, but rather N~obs~. 
+```{r}
+sd_N <- 1/2
+
+Tree <- rep(1:20, each=3)
+
+# three measurements of N for each tree
+Nobs3 <- rnorm(n=length(Tree), 
+               mean=Ntrue[Tree], 
+               sd=sd_N)
+
+# average the measurements of N for each tree to there's a single measurement
+Nobs <- numeric(20)
+for(i in 1:20){
+  Nobs[i] = mean(Nobs3[Tree == i])
+}
+```
+
+The important thing here is that `Ntrue` is the expected value for `Nobs`, we simply add on some measurement error. Just like in our DAG, above, N~true~ _causes_ both seed mass as well as the observed values of N~obs~. 
+
+What does this look like compared to the Truth?
+```{r}
+plot(Seeds ~ Ntrue, xlim=range(Ntrue, Nobs))
+points(x=Nobs, y=Seeds, col = "red", pch=20)
+arrows(x0=Ntrue, x1=Nobs, y0=Seeds, length=1/10, col="red")
+```
+
+So we can see that some observed values of N are far from the True value. Let's see what this means for our goal of estimating the relationship between N and seed production.
+
+## Fitting a model given omniscience
+
+Let's first fit a model using the True values of soil nitrogen as if we had perfect data. This is just good point of comparison. Again, in reality we _couldn't_ do this. 
+```{r}
+dat <- list(Seeds=Seeds, 
+            Ntrue=Ntrue, 
+            Nobs=Nobs)
+
+m_true <- ulam(
+  alist(
+    Seeds ~ normal(mu, sd),
+    mu <- a + b*(Ntrue-5), 
+    a ~ normal(4, 2),
+    b ~ normal(0, 1),
+    sd ~ exponential(1)
+  ), 
+  data=dat
+)
+
+precis(m_true)
+```
+
+And for completeness, and so we have the code for the next iterations, let's plot this relationship. 
+```{r}
+genPreds <- function(df, model, n=1e4, lo=0.055, hi=0.945){
+  preds <- rethinking::link(fit=model, data=df, n=n)
+  df$preds_mean <- apply(X=preds, MARGIN=2, FUN = mean)
+  df$preds_lo <- apply(X=preds, MARGIN=2, FUN = quantile, prob=lo)
+  df$preds_hi <- apply(X=preds, MARGIN=2, FUN = quantile, prob=hi)
+  return(df) 
+}
+
+
+preds_true <- data.frame(
+  Ntrue = seq(from=min(Ntrue, Nobs), 
+               to=max(Ntrue, Nobs), 
+               length.out=50)
+)
+
+preds_true <- genPreds(df=preds_true, model = m_true)
+
+plot(Seeds ~ Ntrue)
+lines(x=preds_true$Ntrue, y=preds_true$preds_mean)
+lines(x=preds_true$Ntrue, y=preds_true$preds_lo, lty=2)
+lines(x=preds_true$Ntrue, y=preds_true$preds_hi, lty=2)
+```
+
+## Fitting a naive model with N~obs~, but pretending it is perfect
+
+Now let's use the predictor we would have, `Nobs`, but without acknowledging that it might be wrong. It is identical to the prior model, only substituting `Nobs` for `Ntrue`.
+```{r}
+m_obs <- ulam(
+  alist(
+    Seeds ~ normal(mu, sd),
+    mu <- a + b*(Nobs-5), 
+    a ~ normal(4, 2),
+    b ~ normal(0, 1),
+    sd ~ exponential(1)
+  ), 
+  data=dat
+)
+
+precis(m_obs)
+```
+
+The output is a _bit_ different than the model using True values of the predictor, but it's not terrible. More than anything we just get less precision in our estimates (and the slope tends to be a bit flatter in repeated simulations).
+
+```{r}
+preds_obs <- data.frame(
+  Nobs = seq(from=min(Ntrue, Nobs), 
+               to=max(Ntrue, Nobs), 
+               length.out=50)
+)
+
+preds_obs <- genPreds(df=preds_obs, model = m_obs)
+
+plot(Seeds ~ Ntrue)
+# True model
+lines(x=preds_true$Ntrue, y=preds_true$preds_mean)
+lines(x=preds_true$Ntrue, y=preds_true$preds_lo, lty=2)
+lines(x=preds_true$Ntrue, y=preds_true$preds_hi, lty=2)
+# Model with observed values
+lines(x=preds_obs$Nobs, y=preds_obs$preds_mean, col="red")
+lines(x=preds_obs$Nobs, y=preds_obs$preds_lo, lty=2, col="red")
+lines(x=preds_obs$Nobs, y=preds_obs$preds_hi, lty=2, col="red")
+```
+
+Why are the predictions of these two models so close? Largely because we have a fair bit of data and while we have errors---observed values of N that are shifted to the left or right of their true values---those errors tend to cancel out in this case. We won't always be so lucky, so let's see how to model this with the structure we used to create the data.
+
+## Fitting a less naive model
+
+We now model the predicted seed mass as a function of the _estimated_ "True" value of nitrogen (called `N_True` to distinguish it from `Ntrue`, which we would not actually know). But we also have to model the relationship between what we observed, `Nobs`, and the "True" value. This is formulated as `Nobs ~ normal(N_True, Nsd)`, which might be the reverse of what you expected. Remember, we are saying that our observations come from a distribution with an expectation or mean value of `N_True`. It does not matter that we don't _know_ `N_True` and instead need to estimate it; the relationship is what is important. Or put another way, if our model knows that `Nobs` come from a ditribution with some unobserved mean, `N_True`, it can infer what those values of `N_True` must be to produce the observed values, `Nobs`. (We also get it to estimate the standard deviation of the error distribution.)
+
+The only tricky bits (beyond these slightly unintuitive concepts) are getting `ulam` to code things right. We need to tell it that `N_True` is a vector of length `N`, which I now specify in the data and then we need to use a trick in coding---`N_True[i]` instead of `N_True` in the linear model---to ensure the data types match up on the left and right-hand side of the equation for `mu`. 
+
+```{r}
+dat$N <- length(dat$Nobs)
+
+m_full <- ulam(
+  alist(
+    Seeds ~ normal(mu, sd),
+    mu <- a + b*(N_True[i]-5), # <- notice the subsetting... necessary to get the data types to match.
+    
+    Nobs ~ normal(N_True, Nsd), 
+    vector[N]:N_True ~ normal(5, 2),
+    
+    a ~ normal(4, 2),
+    b ~ normal(0, 1),
+    sd ~ exponential(2),
+    Nsd ~ exponential(2)
+  ), 
+  data=dat
+)
+
+precis(m_full)
+```
+
+Well all of that for not much, huh? This model fit like crap, our effective sample sizes are super low, and you likely got some divergent transitions or an `E-BFMI less than 0.2`. What gives?
+
+Let's see what's going on, and a plot can help a lot.
+
+```{r}
+pairs(m_full, pars=c("a", "b", "sd", "Nsd"))
+```
+
+Notice that the standard deviation representing the measurement error for seed masses, `sd`, is strongly, negatively correlated to the standard deviation of the measurement error for nitrogen concentrations, `Nsd`. Allowing for more variation in either one of these measurements implies more precision in the other; there is no way to disentangle them. 
+
+I would like to point out that even though this model sucked, it did estimate the slope more accurately (if less precisely) than the model that just naively assumed no error in measurements in N. 
+```{r}
+b_true <- extract.samples(m_true)$b
+b_obs <- extract.samples(m_obs)$b
+b_full <- extract.samples(m_full)$b
+
+dens(b_true, xlim=c(0,2))
+dens(b_obs, add=T, col="red")
+dens(b_full, add=T, col="blue")
+```
+
+Also, it is worth seeing that even though this model does suck quite a lot, it is doing a reasonably good job of estimating the True values of nitrogen. It is certainly closer, on average, than the observed values of nitrogen. 
+
+```{r}
+plot(x=Ntrue, 
+     y=colMeans( extract.samples(m_full)$N_True ), 
+     col="blue"
+)
+points(x=Ntrue, y=Nobs, col="red")
+abline(a=0, b=1)
+```
+
+
+So it is "working" in a way. It is just a really inefficient model because it has two parameters trying to do the same thing. 
+
+## Solutions to the less naive model
+
+What are our options, then? What should we do?
+
+First, we might just be OK using the naive model, assuming we demonstrate to ourselves with simulations that our estimates are not biased. 
+
+Second, we might have some way of constraining the priors for, say, `Nsd` so that we don't have two free parameters. For instance, perhaps we have some outside data on the variability in estimates of soil nitrogen. 
+
+Third, if we have estimates of the standard deviation in our estimate of soil nitrogen for each tree---we took three soil samples and averaged them, after all, so we could also calculate an sd---we could include that as data in our model rather than something to be estimated! (This is what McElreath did in his marriage/divorce example in the book.)
+
+Fourth, if we actually had multiple observations of soil nitrogen for each tree we could model these observations directly and have the model estimate the standard deviation across all soil samples for all trees rather than assuming that our estimates of the standard deviations are made without error. 
+
+Recall that we simulated the three soil nitrogen measurements for each tree. We will use these to try options 3 & 4. 
+
+
+```{r}
+dat$N_sd <- numeric()
+for(i in 1:dat$N){
+  dat$N_sd[i] <- sd( Nobs3[Tree==i] )
+}
+```
+So now we have an estimate of the standard deviation of nitrogen measurements for each tree that we can feed into the model as data. 
+
+Our model is just as above, with the exception that `N_sd` is now data rather than an estimated parameter
+```{r}
+m_opt3 <- ulam(
+  alist(
+    Seeds ~ normal(mu, sd),
+    mu <- a + b*(N_True[i]-5), # <- notice the subsetting... necessary to get the data types to match.
+    
+    Nobs ~ normal(N_True, N_sd), 
+    vector[N]:N_True ~ normal(5, 2),
+    
+    a ~ normal(4, 2),
+    b ~ normal(0, 1),
+    sd ~ exponential(2)
+  ), 
+  data=dat
+)
+
+precis(m_opt3)
+```
+
+This model that treats the standard deviation of errors in nitrogen measurements as data runs much, much more efficiently, yes? 
+
+And it does so without causing biases in estimates, like we observed (a bit) in the naive model. 
+```{r}
+b_opt3 <- extract.samples(m_opt3)$b
+
+dens(b_true, xlim=c(0,2))
+dens(b_obs, add=T, col="red")
+dens(b_full, add=T, col="blue")
+dens(b_opt3, add=T, col="green")
+```
+
+In some cases it does a better job of predicting the True values of soil nitrogen, too, though often it does not matter much (on average).
+```{r}
+plot(x=Ntrue, 
+     y=colMeans( extract.samples(m_full)$N_True ), 
+     col="blue"
+)
+points(x=Ntrue, y=Nobs, col="red")
+points(x=Ntrue, 
+       y=colMeans( extract.samples(m_opt3)$N_True ), 
+       col="green")
+abline(a=0, b=1)
+```
+
+The way we have simulated our data, where there is essentially constant error in measurements, is the best-case scenario. You can imagine that if error increased (or decreased) with the value of nitrogen, we would tend to have a stronger bias in our estimates. Accounting for the different reliabilities in measurements, as this model does, can save such an analysis.
+
+Now, finally, let's fit the model to the observed values of nitrogen, directly.
+
+Note that I changed `Nobs`, which was an average for each tree, to `N_obs`, which is a vector with three observations per tree. Also note that I changed `N_sd`, which was data in the last model, back to `Nsd`, which represents the standard deviation among nitrogen measurments. 
+```{r}
+dat$Tree <- Tree
+dat$N_obs <- Nobs3
+
+
+m_opt4 <- ulam(
+  alist(
+    Seeds ~ normal(mu, sd),
+    mu <- a + b*(N_True[i]-5), # <- notice the subsetting... necessary to get the data types to match.
+    
+    N_obs ~ normal(N_True[Tree], Nsd), 
+    vector[N]:N_True ~ normal(5, 2),
+    
+    a ~ normal(4, 2),
+    b ~ normal(0, 1),
+    sd ~ exponential(2),
+    Nsd ~ exponential(2)
+  ), chains=4, cores=4,
+  data=dat
+)
+
+precis(m_opt4)
+
+pairs(m_opt4, pars=c("a", "b", "sd", "Nsd"))
+```
