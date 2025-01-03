@@ -155,7 +155,7 @@ Any points above the 1:1 line might be interpreted as measurement error on the i
 
 ## And so...? What do we do with this?
 
-First off, congratulations! We've simulated data! This is one example of data we could get from our experimental design. But now that we have the code, shouldn't we futz with things a bit? Absolutely!
+Well, congratulations! We've simulated data! This is one example of data we could get from our experimental design. But now that we have the code, shouldn't we futz with things a bit? Absolutely!
 
 One of the first things I would do is just re-run the code. It's easier if we put it all in one place
 
@@ -187,6 +187,86 @@ What else can we do with simulated data?
 *  tweak our study design. What if we added more large groups of carcasses? Would we get a better estimate? Would it help us differentiate the two models?
 *  extrapolate to scales or settings we care about (e.g., if things look like this here, what about in whole ponds?)
 
+## Can we recover the attack rate?
+
+Before moving on, let me just illustrate how we might accomplish that first bulleted item. In outline, we want to simulate a data set, fit a model to those data (here it will just be a simple linear model without an intercept), extract the estimate of the attack rate (the slope), and the repeat a bunch of times. We can then see if we are usually close to the True value, whether they estimates tend to be high or low, or any other sorts of things. 
+
+Also, for fun, imagine we wanted to do this with a bunch of different values of the attack rate to see if, for instance, we are good at recovering the True rate when it is high, but not at low values. 
+
+The first step is to set up a data frame (or you could use a matrix) with a column for the value of the attack rate and a row for each simulation. Let's use 1000 simulations for each value of `a`. 
+
+```{r}
+sim_results <- data.frame(a_tru = rep(c(0.1, 0.2, 0.3, 0.4, 0.5), each = 1e3), 
+                          a_est = -999, # to hold the point estimate of a; using a placeholder value of -999
+                          a_sd = -999  # to hold the stdev of our estimate of a
+)
+```
+
+Then we just want to loop over the 5000 rows of our data frame, simulating a data set, fitting a linear regression line to it (we'll just use canned R code for this, but we can do this in a Bayesian way, later), and then extracting the slope and standard error of the slope, putting them in the right slots in our data frame.
+```{r}
+# the standard values of key parameters
+n <- 18 # number of aquaria
+mean_c <- 1 # 1 g
+n_carc <- c( rep(1, 5), rep(2, 5), rep(5, 3), rep(8, 3), rep(10, 2) ) # number of carcasses in each aquarium
+
+for(i in 1:nrow(sim_results)){
+  # make a simulated data set
+  carc <- rnorm(n=18, mean = mean_c*n_carc, sd = 0.25) # carcass weights in each aquarium
+  mu <- sim_results$a_tru[i] * carc
+  obs <- rlnorm(n, meanlog = log(mu), sdlog =1/2)
+  
+  # fit a model
+  m <- lm(obs ~ carc - 1) # the "-1" means no intercept
+  
+  # put things in the right slots
+  sim_results$a_est[i] <- summary(m)[["coefficients"]]["carc", "Estimate"]
+  sim_results$a_sd[i] <- summary(m)[["coefficients"]]["carc", "Std. Error"]
+}
+```
+
+You should then have a data frame with the true value of the attack rate, the estimate and its standard error. 
+```{r}
+head(sim_results)
+```
+
+We can then do all sorts of things with this. For instance, we might just want want to know if we get the right value, on average:
+```{r}
+tapply(X = sim_results$a_est, 
+       INDEX = sim_results$a_tru, 
+       FUN = mean)
+```
+
+Here you will see that we tend to be over estimating the attack rate (by about 10\% on average) at each True value of attack rate. First, isn't it good to _know_ that we have that bias?! If these were real data you would never know! Second, you might, with some thought, realize that we didn't model the data the way we simulated them. Our simulated data come from a lognormal distribution, but our linear regression assumes normally distributed observations. The occasional observation of very high carcass consumption tends to bias our estimates up. Had we used a lognormal distribution, I think we would have been fine. Usually you'd want to explore and fix such problems, but here I'm aiming for a simple example. 
+
+We might also want to see if, say, ~95% of our estimates are within $\pm$ two standard deviations of the true value (i.e., that our estimates are well-calibrated). We could do that here, with this sort of code:
+```{r}
+sim_results$within2 <- ifelse( abs(sim_results$a_est-sim_results$a_tru) <= sim_results$a_sd*2, 1, 0)
+
+tapply(X = sim_results$within2,
+       INDEX = sim_results$a_tru, 
+       FUN = function(x) sum(x)/length(x))
+```
+Again, we're seeing this estimate is poorly calibrated, probably for the same reason the mean of the estimates is off. The point is just to see how we could approach thinking about how well or methods were working on data where we _know_ the Truth. 
+
+## Writing it down
+
+We have created a _generative_ model, meaning it can generate new data^[We will see that generative models are essentially Bayesian models, so this was even handier than you might have thought!]. It can be super helpful to write down a model like this in a concise, pretty, perhaps even mathy way. There are, of course, many ways, but we'll follow a set of conventions that are common and also used by McElreath. 
+
+$$
+\begin{align}
+\text{mass}_i &\sim \text{Lognormal}(\log(\mu_i), \log(\sigma)) \\
+\mu_i &= a \times c_i \\
+a &= 0.5 \\
+\log(\sigma) &= 0.5
+\end{align}
+$$
+Starting with the first line, this means that the remaining mass observed in aquarium $i$ is distributed (that's what the $\sim$ means) as a lognormal with a mean on the the log scale of $\log(\mu_i)$ and a standard deviation on the log scale of $\log(\sigma)$. The corresponds to the `rlnorm(n, meanlog = log(mu), sdlog =1/2)` statement in our code. 
+Next we specify the relationship between the amount of carcass mass available ($c_i$) and the expected amount consumed ($\mu_i$). Note that the expectation is not distributed; it is simply equal to $a \times c_i$. This line is often more complicated, but is frequently a linear model like we see here. In our code this was `mu <- a * carc`. 
+
+Finally, the last two lines tell us what values the two parameters, $a$ and $\sigma$, can take. Here they are both single constants, but we might instead allow them to vary, with some constraints. For instance, we might simulate $a$ as coming from a normal distribution with a mean of 0.5 and and a standard deviation of 0.1 (`a <- rnorm(n=1, mean=0.5, sd=0.1)`) in which case we would write it as $a \sim \text{Normal}(0.5, 0.1)$. Notice that we constrained the value of $\sigma$ to be 0.5 _on the natural logarithmic scale_. We could also have just said that $\sigma = \exp(0.5) = 1.648721$, but this is sometime simpler to understand. 
+
+Anyway, this is a nice, compact, transparent way to write out a generative model^[And, as you will see, our Bayesian models, in which case each line has a pretty straightforward meaning: the likelihood, the linear model, and the priors.], one that we'll use a lot in this class. 
+
 
 # Simulating data from the Type II functional response
  
@@ -195,9 +275,19 @@ $$
 \mu_i = \frac{a \times c_i}{1+a \times c_i \times h},
 $$
 
-where $h$ represents handling time, but everything else is the same. Indeed, we are really only changing the relationship (part 2, above), so this should be quick. 
+where $h$ represents handling time, but everything else is the same. Indeed, we are really only changing the relationship (part 2, above), so this should be quick. Indeed, the full model can be written down as:
 
-We can constrain handling time to be $\geq 0$ from first principles, but I think we can also say that handling time is also unlikely to be super high, as in it is unlikely that handling time to consume a carcass is on the order of the time of the experiment (48h). We can therefore assume $1 > h > 0$.
+$$
+\begin{align}
+\text{mass}_i &\sim \text{Lognormal}(\log(\mu_i), \log(\sigma)) \\
+\mu_i &= \frac{a c_i}{1+a c_i h} \\
+a &= 0.5 \\
+\log(\sigma) &= 0.5 \\
+h &= ?
+\end{align}
+$$
+
+All we have to do is sort out what $h$ should be. We can constrain handling time to be $\geq 0$ from first principles, but I think we can also say that handling time is also unlikely to be super high, as in it is unlikely that handling time to consume a carcass is on the order of the time of the experiment (48h). We can therefore assume $1 > h > 0$.
 
 Let's try simulating some values. I'm going to use the `curve` function, which is sort of like `abline()` except that it plots an arbitrary function instead of just a line.
 ```{r}
@@ -230,3 +320,4 @@ abline(a=0, b=1, lty=2) # a 1:1 line just for context
 ```
 
 Note that I also added the expectation lines for the type I response (red), assuming no handling time, and the type II response (blue) so we can better see how at least the expectations deviate. You might sort of eyeball it and see if you think curves fit to these data could differentiate between the two models. Indeed, those would be next steps. But for now, I think we're done. 
+
