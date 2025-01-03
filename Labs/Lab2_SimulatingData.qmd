@@ -13,11 +13,11 @@ format:
 
 Today's lab is an introduction to simulating data. Wait! Before you fall asleep, let me take a stab at convincing you that simulating data is important. Super important and helpful, no less!  
 
-Imagine you have your data in hand from your latest study or experiment and you go to analyze it. You do some fancy statsy things and you get a number back (maybe an estimate or a threshold or an information criteria), but, in your heart of hearts you wonder: _Is this right? Did I maybe mess this up? Did the statistics get it wrong?_ Well here's the problem: you can't know! Not really. After all, you do not know the process that actually process(es) that produced these data. In fact, often you're trying to figure out what that process was. So how could you know? 
+Imagine you have your data in hand from your latest study or experiment and you go to analyze it. You do some fancy statsy things and you get a number back (maybe an estimate or a threshold or an information criteria), but, in your heart of hearts you wonder: _Is this right? Did I maybe mess this up? Did the statistics get it wrong?_ Well here's the problem: you can't know! Not really. After all, you do not know the actual process(es) that produced these data. In fact, often you're trying to figure out what the processes were. So how could you know? 
 
-Enter simulation! If you make up the data, you know exactly what process produced it! You know whether you were using a linear or a logistic relationship between $x$ and $y$. You know the slope and the intercept, not to mention the error distribution and the variance you used! It is the rare instance where you know The Truth.  If your statistical routines and wizardry can recover that Truth, or something reasonably similar, then that should give you confidence that they can work with real data where we don't know any of the relevant details about the generating process with any certainty. If your methods _don't_ work, well, at least you have fair warning and you stand a chance of fixing them before applying them to real data, or at least not listening to their wrong results too closely. 
+Enter simulation! If you make up the data, you know exactly what process produced it! You know whether you were using a linear or a logistic relationship between $x$ and $y$. You know the slope and the intercept, not to mention the error distribution and the variance you used! It is the rare instance where you know **The Truth**.  If your statistical routines and wizardry can recover that Truth, or something reasonably similar, then that should give you confidence that they can work with real data where we don't know any of the relevant details about the generating process with any certainty. If your methods _don't_ work, well, at least you have fair warning and you stand a chance of fixing them before applying them to real data, or at least not listening to their wrong results too closely. 
 
-You can simulate data to test your statistical methods, but also to design better studies. And in a Bayesian stats workflow we're going to simulate the heck out of things to see if our priors make sense, if our posterior predictions are reasonably consistent with our data, and even counterfactual pretend scenarios. It's a hugely powerful tool and we'll be using it a lot. So, buckle up! We're going for a ride!
+You can also simulate data to design better studies. What if we devote more replicates to each of fewer treatment levels? Or the reverse? Do I stand a better chance of seeing what I'm looking to see?  And in a Bayesian stats workflow we're going to simulate the heck out of things to see if our priors make sense, if our posterior predictions are reasonably consistent with our data, and we will even simulate counterfactual scenarios. It's a hugely powerful tool and we'll be using it a lot. So, buckle up! We're going for a ride!
 
 
 ::: {.callout-warning}
@@ -30,13 +30,13 @@ Be honest. Something weird sometimes happens when we move from data collection t
 We're going to simulate some data by hand, using coins and rice and things. We're going to do this because it is fun, but also because we want to ground what we're doing in reality. 
 
 ## Coin flips with addition 
-If we each have a couple of pennies and we all flip them together we can count how many heads (=successes) we had out of $N$ (number of coins) _independent_ trials. This is like having an experiment with $N$ mice each in a separate Y-maze (or sequentially run in the same maze) and recording whether they choose the "correct" side of the Y. Or any number of other similar scenarios in our research. Of course in this case we know that there is a 50:50 chance of getting a success in each trial, but most of the time we are trying to estimate an unkown probability of success (however that is defined). 
+If we each have a couple of pennies and we all flip them together we can count how many heads (=successes) we had out of $N$ (number of coins) _independent_ trials. This is like having an experiment with $N$ mice each in a separate Y-maze (or sequentially run in the same maze) and recording whether they choose the "correct" side of the Y. Or any number of other similar scenarios in our research. Of course in this case we know that there is a 50:50 chance of getting a success in each trial, but most of the time we are trying to estimate an unknown probability of success (however that is defined). 
 
 Anyway, let's flip all of our coins 20 time, counting the number off successes in each round to see what our data might look like if, say, our mouse was simply guessing.
 
 ## Data in hand, let's explore it
 
-In this case we had essentially a single process producing our data. There were no covariates or confounding anythings. But even still, there were a variety of outcomes from the process, yes? That is, a simple, single process does not produce the same observation over and over again. There is a _distribution_ of outcomes^[Why am I beating this dead horse? Because, again, we want to think very carefully and explicitly at what we have in our hands and what we're doing with it. This stuff can be slippery!]. Thus what we want to do now is examine  the _distribution_ of outcomes from each process. How? Well, a histogram is a good start.
+In this case we had essentially a single process producing our data. There were no covariates or confounding anythings. But even still, there were a variety of outcomes from the process, yes? That is, a simple, single process does not produce the same observation over and over again. There is a _distribution_ of outcomes^[Why am I beating this dead horse? Because, again, we want to think very carefully and explicitly at what we have in our hands and what we're doing with it. This stuff can be slippery!]. Thus what we want to do now is examine the _distribution_ of outcomes from each process. How? Well, a histogram is a good start.
 
 Remember our work flow? 
 
@@ -57,7 +57,7 @@ Let's use our workflow to examine the distributions of our coin flip outcomes.
 
 As fun as this was^[Will be? You're in my future and I'm in your past.], it does take a while. Plus, many of you already know that R has some built-in functions to simulate data. Let's just explore those, starting with coin flips
 
-Coin flips are each so-called Bernoulli trials, single trials each with a probability of success of, in this case, $P(success)=0.5$. In this case, the number of successes is either 0 or 1. If we have a number of Bernoulli trials then the number of successes is described by the binomial distribution. To simulate data from a binomial distribution in R we use the `rbinom()` function.
+A coin flip is a so-called Bernoulli trial, a single trial with a set probability of success---in this case, $P(success)=0.5$---of a binary (yes/no) outcome. In this case, the number of successes is either 0 or 1. If we have a number of Bernoulli trials then the number of successes is described by the _binomial_ distribution. To simulate data from a binomial distribution in R we use the `rbinom()` function.
 ```{r}
 ## Binomial, coin-flips
 # The number of heads from one trial with 20 coins, each coin having a 50% probability of landing on heads.
@@ -111,7 +111,7 @@ dbinom(x=0:20, size=20, prob=0.5)
 It look like the most likely outcome, with a probability of 0.1762, is 10 out of 20 coins being heads. Can we plot this? Sure!
 
 ```{r}
-plot(x=0:20, y=dbinom(x=0:20, size=20, prob=0.5))
+plot(x=0:20, y=dbinom(x=0:20, size=20, prob=0.5)) # try type = "h" if you want a histogram style
 ```
 
 Let's see if we can plot our sampled data, `heads`, but with a fair coin, along side our theoretical probabilities. Yes, in base R we need to use `points()` to add points to an existing plot. But here we go
@@ -128,7 +128,7 @@ points(x=0:20, y=dbinom(x=0:20, size=20, prob=0.5))
 
 OK, that looks odd. What happened? 
 
-Recall that `dbinom()` tells us the probability of each outcome. The sum of all possible outcomes must equal 1, right? Otherwise it wouldn't be a probability distribution! However, our histogram is plotting the number of observations of each outcome. It is much, much higher. Currently, if we added up all the bars they would sum to 100 for the 100 rounds we simulated. We can change the behavior of `hist()` to plot the _proportion_ of observations instead of the number, in which case these two things should be on the same scale. 
+Recall that `dbinom()` tells us the probability of each outcome. The sum of all possible outcomes must equal 1, right? Otherwise it wouldn't be a probability distribution! However, our histogram is plotting the _number_ of observations of each outcome. It is much, much higher. Currently, if we added up all the bars they would sum to 100 for the 100 rounds we simulated. We can change the behavior of `hist()` to plot the _proportion_ of observations instead of the number, in which case these two things should be on the same scale. 
 ```{r}
 #plot the histogram, with a y axis of the proportion
 hist(heads, breaks=0:20, freq=FALSE)
@@ -140,7 +140,7 @@ points(x=0:20, y=dbinom(x=0:20, size=20, prob=0.5))
 Bingo! So they look similar, yes? But not identical, for sure. The issue is that the outcomes are, well, random! Sometimes you just get a few more, say, 8's than you expect, but it's still coming from a coin-flip type of experiment. 
 
 ::: {.callout-note}
-This is one of the additional reasons I think simulating data is important: it gives you a sense of what is possible, even without a "cause" (e.g., some mechanism that influences the outcome from the mean).
+This is one of the additional reasons I think simulating data is important: it gives you a sense of what is possible, even without anything complicated happening (e.g., some mechanism that influences the expectation).
 :::
 
 
@@ -150,8 +150,8 @@ Briefly, so you can replicate this same thing in the Tidyverse if you so choose,
 library(tidyverse)
 
 ggplot(tibble(x=heads), aes(x)) + 
-  geom_histogram(aes(y=after_stat(density)), 
-                 binwidth=1, ) + 
+  geom_histogram(aes(y=after_stat(density)), # <- weird, but helpful!
+                 binwidth=1) + 
   stat_function(fun=dbinom, 
                 args=list(size=20, prob=0.5), 
                 n=21, 
@@ -162,9 +162,9 @@ ggplot(tibble(x=heads), aes(x)) +
   scale_y_continuous("Number of rounds with x successes")
 ```
 
-OK, there are two bits of voodoo at work here. The first is in the `geom_histogram()` call, where we use `after_stat()` to tell the histogram to use `density` instead of its default of `count`^[If you tried this years ago you would have instead said `y=..dens..`. I don't know or understand the logic, but there you go]. The other thing is this `stat_function()` call, that you probably have not used. It is often useful in that you can give it a function, a list of arguments to that function, and the number of points along the x-axis to evaluate that function and it will then do the plotting for you. Try futzing with things to see if you understand how it works. 
+OK, there are two bits of voodoo at work here. The first is in the `geom_histogram()` call, where we use `after_stat()` to tell the histogram to use `density` instead of its default of `count`^[If you tried this years ago you would have instead said `y=..dens..`. I don't know or understand the logic, but there you go]. 
 
-However, if things get much more complicated than this (e.g., you have different distributions for different groups or similar), you are better off just creating a data frame with the $x$ and $y$ values and then plotting those with normal plotting tools. 
+The other thing is this `stat_function()` call, that you probably have not used. It is often useful in that you can give it a function, a list of arguments to that function, and the number of points along the x-axis to evaluate that function and it will then do the plotting for you. Try futzing with things to see if you understand how it works. However, if things get much more complicated than this (e.g., you have different distributions for different groups or similar), you are better off just creating a data frame with the $x$ and $y$ values and then plotting those with normal plotting tools. 
 
 # Cumulative distributions and quantile functions
 
@@ -179,7 +179,8 @@ sum(heads <= 12) / length(heads)
 
 Or we could do this more generally by finding the cumulative number (or fraction) of rounds of our coin flipping experiment that had 0, 1, 2, ... 20 successes.
 
-Here is the same logic, just looped over different values so that (I hope) you can see what's happening. 
+Here is the same logic, just looped over different values so that (I hope) you can see what's happening^[It is worth noting that there are a lot of ways to get this information. For instance, the function `hist()` actually calculates this, too. Try `cumsum( hist(heads, breaks=0:21, plot=FALSE)$density )`].
+
 ```{r}
 fraction <- numeric()
 
@@ -190,14 +191,8 @@ fraction
 plot(x=0:20, y=fraction)
 ```
 
-It is worth noting that there are a lot of ways to get this information. For instance, the function `hist()` actually calculates this, too:
-```{r}
-print(hist(heads, breaks=0:21, plot=FALSE)) # Look in density
 
-cumsum( hist(heads, breaks=0:21, plot=FALSE)$density )
-```
-
-Anyway, you will not be surprised that we can take a theoretical approach, as if we were summing up all of the precise, analytical probabilities produced by `dbinom()`. Ineed, there's a function for it: `pbinom()`. This provides the _probability_ of observing a value of $x$ or less. It gives us the same thing as we were just figuring out, but it's a probability based on the underlying binomial distribution, not a fraction of observations that meet that criterion.
+Anyway, you will not be surprised that we can take a theoretical approach, as if we were summing up all of the precise, analytical probabilities produced by `dbinom()`. Indeed, there's a function for it: `pbinom()`. This provides the _probability_ of observing a value of $x$ or less. It gives us the same thing as we were just figuring out, but it's a probability based on the underlying binomial distribution, not a fraction of observations that meet that criterion.
 ```{r}
 pbinom(0:20, size=20, prob=0.5)
 
@@ -231,7 +226,7 @@ plot(x=0:100/100,
 
 The point of all of this has simply been so that you understand a) what we are getting out of statistical distributions, and b) the different ways we can use them. Or in other words, what do `rbinom()`, `dbinom()`, `pbinom()`, and`qbinom()` _do_ and how do they relate? 
 
-Here is a quicker, simpler visual explanation of how these functions relates:
+Here is a quicker, simpler visual explanation of how these functions relate:
 
 ```{r}
 #| echo: false
@@ -255,13 +250,16 @@ segs <- tibble(x = c(5, 8, 9.5,  11),
 dp <- ggplot(df, aes(x, prob)) + geom_point() +
   geom_segment(data=segs, aes(xend = x, y=0, yend = prob), col = "red") + 
   geom_segment(data=segs, aes(x=x, xend=0, y=prob, yend=prob), col = "red", arrow = arrow(type = "closed", length = unit(0.2, "cm"))) + 
+  geom_point(data=segs, aes(x=x, y=0), col = "red", shape = 21) + 
   labs(y="Probability mass", 
        title = "dbinom()") + 
   scale_x_continuous(minor_breaks = 0:20)
 
 # rbinom
+dat <- tibble(x=rbinom(n=7, size = 20, prob=0.5), prob=dbinom(x, size = 20, prob=0.5))
 rp <- ggplot(df, aes(x, prob)) + geom_point() +
-  geom_segment(data=tibble(x=rbinom(n=7, size = 20, prob=0.5), prob=dbinom(x, size = 20, prob=0.5)), aes(x=x, xend=x, y=prob, yend=0), col = "orange", arrow = arrow(type = "closed", length = unit(0.2, "cm"))) + 
+  geom_point(data=dat, aes(x=x, y=prob), col = "orange", shape = 21, size=2.5) + 
+  geom_segment(data=dat, aes(x=x, xend=x, y=prob, yend=0), col = "orange", arrow = arrow(type = "closed", length = unit(0.2, "cm"))) + 
   labs(y="", 
        title = "rbinom()") + 
   scale_x_continuous(minor_breaks = 0:20)
@@ -270,6 +268,7 @@ rp <- ggplot(df, aes(x, prob)) + geom_point() +
 pp <- ggplot(df, aes(x, cump)) + geom_point() + geom_step(direction="hv") +
   geom_segment(data=segs, aes(xend = x, y=0, yend = cump), col = "darkgreen") + 
   geom_segment(data=segs, aes(x=x, xend=0, y=cump, yend=cump), col = "darkgreen", arrow = arrow(type = "closed", length = unit(0.2, "cm"))) + 
+  geom_point(data=segs, aes(x=x, y=0), col = "darkgreen", shape = 21) + 
   labs(y="Cumulative probability", 
        title = "pbinom()") + 
   scale_x_continuous(minor_breaks = 0:20)
@@ -279,6 +278,7 @@ pp <- ggplot(df, aes(x, cump)) + geom_point() + geom_step(direction="hv") +
 qp <- ggplot(df, aes(x, cump)) + geom_point() + geom_step(direction="hv") +
   geom_segment(data=segs, aes(x=qump, xend = qump, y=cump, yend = 0), col = "blue", arrow = arrow(type = "closed", length = unit(0.2, "cm"))) + 
   geom_segment(data=segs, aes(x=qump, xend=0, y=cump, yend=cump), col = "blue") + 
+  geom_point(data=segs, aes(x=0, y=cump), col = "blue", shape = 21) +
   labs(y="", 
        title = "qbinom()") + 
   scale_x_continuous(minor_breaks = 0:20)
@@ -350,7 +350,16 @@ OK, so with these basic tools in mind, I would like you to do the following:
 7.  You have demonstrated a fundamental theorem in statistics. Do you know what that is?
 
 ```{r}
+#| include: false
+#| echo: false
+tmp <- rbinom(1e6, 25, 0.65)/25
+mean(tmp)
+sd(tmp)
 
+ggplot(tibble(p = tmp), aes(x=p)) + 
+  geom_histogram(aes(y = after_stat(density)), binwidth = 1/25) +
+  stat_function(fun = dnorm, args = list(mean = 0.651304, sd = 0.09549791)) + scale_x_continuous("p", limits = c(0,1))
+  
 ```
 
 

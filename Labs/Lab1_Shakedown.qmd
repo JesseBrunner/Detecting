@@ -18,7 +18,7 @@ Given all of this, my goals for this lab are to:
   * Develop a common workflow
   * Make a habit of knowing what we are doing or working with
   * Ensuring we have common tools so we can be on the same page
-  * Introducing some base R functions we will see used frequently in the text
+  * Introduce some base R functions we will see used frequently in the text
 
 On this last point, we are going to try to lean on the tools that McElreath uses, that is mostly base R functions, so that we can easily compare our work with his. I tend to use Tidyverse tools, myself, and there will be room for using whatever tools you like once you know what you are doing with them, but there is real value to _knowing_ what he is doing in his examples because you are doing the same things. 
 
@@ -56,7 +56,7 @@ summary(smammals)
 str(smammals)
 ```
 
-Nothing seems terribly amiss, yet. In both of these ways we can see that every variable that is not obviously a number is treated as a character. We might want to change that using, for instance, `factor()` or `as.Date()` (or `lubridate::ymd()` in the Tidyverse). Dates are the worst to deal with. Just a heads up that whenever you have dates in Excel you _must_ check to see that R has interpreted things correctly. I can't tell you how often my otherwise perfect code has been foiled by input that wasn't actually the date I had thought it was. Anyway, for now, we can ignore everything but one: While `Tag`, referring to the ear tag, is really a categorical variable, R thinks it is an integer and will try to do math with it. 
+Nothing seems terribly amiss, yet. In both of these ways we can see that every variable that is not obviously a number is treated as a character. We might want to change that using, for instance, `factor()` or `as.Date()`^[or `lubridate::ymd()` in the Tidyverse]. Dates are the worst to deal with. Just a heads up that whenever you have dates in Excel you _must_ check to see that R has interpreted things correctly. I can't tell you how often my otherwise perfect code has been foiled by input that wasn't actually the date I had thought it was. Anyway, for now, we can ignore everything but one: while `Tag`, referring to the ear tag, is really a categorical variable, R thinks it is an integer and will try to do math with it. 
 
 ## Adjust the variables
 
@@ -64,7 +64,7 @@ Let's make `Tag` a factor. We really don't care what about the order, just that 
 ```{r}
 smammals$Tag <- factor(smammals$Tag)
 ```
-And for fun, let's make `Date` an actual date. The package `lubridate` has some handy functions, but in base R this is:
+And for fun, let's make `Date` an actual date. 
 ```{r}
 smammals$Date <- as.Date(smammals$Date, format = "%m/%d/%Y")
 ```
@@ -80,7 +80,7 @@ Let's simply plot weight by body length for each species to make sure these vari
 plot(Weight ~ Body, col = factor(Species), data = smammals)
 ```
 
-Full disclosure, I hate plotting in base R anymore! I can't even figure out how to add a meaningful legend anymore. This is much simpler with `ggplot2`, if you know how that works:
+Full disclosure, I hate plotting in base R! I can't even figure out how to add a meaningful legend anymore. This is much simpler with `ggplot2`, if you know how that works:
 ```{r}
 library(ggplot2)
 ggplot(data=smammals, 
@@ -95,21 +95,23 @@ Anyway, we are starting to see some issues showing up in both graphs. First, it 
 ```{r}
 summary(smammals[smammals$Species == "TAAM", ])
 ```
-First, be sure you understood what's happening here (i.e., how I'm subsetting the `smammals` data set by those where the condition is true and then getting a summary of this reduced data set). (And yes, this would be much easier to follow in the Tidyverse! But not all things are.)
 
-We could also use the `tapply()` function:
+First, be sure you understood what's happening here (i.e., how I'm subsetting the `smammals` data set by those where the condition is true and then getting a summary of this reduced data set^[And yes, this would be much easier to follow in the Tidyverse! But not all things are.]). The key to understanding is taking things in steps. What does the `smammals$Species == "TAAM"` command do? What does it mean if I insert it in brackets after the name of the data set? Figure it out before jumping to the next part of it. (And ask questions when they arise!)
+
+We could do something similar using the `tapply()` function:
 ```{r}
 tapply(X = smammals$Body, 
        INDEX = smammals$Species, 
        FUN = summary)
 ```
-I like to think of this function as the "table" apply function because it first organizes our data like a data table, according to whatever index we've given it, and then applies the function of our choice. Or, more specifically, it applies the function specified by `FUN` to the vector (or similar) of data specified by `X`, which is split into groups according to the variable specified by `INDEX`. We will see and use several `apply` functions in this class (mostly `apply()`, which we will see below, and `sapply()`). They are _not_ always very intuitive, but they are very powerful and McElreath uses them frequently, so it behooves us to get used to them. (Also note, in this case it would be easy to accomplish the same thing in the Tidyverse, but there are several cases we'll see where it is _not_ easy or transparent to do so.)
 
-Anyway, we can see that we were missing data on `Body` length for all but PEMA and ZAPR, hence why they didn't show up.  Since we're not really interested in this, we can move on, but it does highlight why _looking_ at your data is important. 
+I like to think of this function as the "table" apply function because it first organizes our data like a data table, according to whatever index we've given it (here, `Species`), and then applies the function of our choice (here, `summary()`). Or, more specifically, it applies the function specified by `FUN` to the vector (or similar) specified by `X`, which is split into groups according to the variable specified by `INDEX`. We will see and use several `apply` functions in this class (mostly `apply()`, which we will see below, and `sapply()`). They are _not_ always very intuitive, but they are very powerful and McElreath uses them frequently, so it behooves us to get used to them^[Also note, in this case it would be easy to accomplish the same thing in the Tidyverse, but there are several cases we'll see where it is _not_ easy or transparent to do so. So let's stick with base R stuff.]
+
+Anyway, we can see that we were missing data on `Body` length for all but PEMA and ZAPR, hence why they didn't show up. Since we're not really interested in this, we can move on, but it does highlight why _looking_ at your data is important. 
 
 ## Re-organize, summarize, or manipulate
 
-So our real question was how many captures animals tended have and how that varied by species. This is a bit complicated because the data are structured such that each row is a separate capture. There is no variable that represents how many times an individual (represented by `Tag`) was captured other than the number of rows it occurs over. In other words, we need to re-organize or summarize our data. 
+So our real question was how many captures individual animals had and how that varied by species. This is a bit complicated because the data are structured such that each row is a separate capture. There is no variable that represents how many times an individual (represented by `Tag`) was captured other than the number of rows it occurs over. In other words, we need to re-organize or summarize our data. 
 
 Let's see if we can't use that same trick with `tapply()`
 ```{r}
@@ -140,7 +142,7 @@ Perhaps this is enough for us, but I think a plot of the data makes these summar
 
 ```{r}
 # Start with TAAM, which had most values
-hist(bySpp[,2], breaks = 0:8) 
+hist(bySpp[,2], breaks = 0:8, ylim = c(0, 45)) 
 hist(bySpp[,1], add = T, border = "red", col = NULL)
 hist(bySpp[,3], add = T, border = "blue", col = NULL)
 hist(bySpp[,4], add = T, border = "green", col = NULL)
@@ -154,8 +156,9 @@ data.frame(bySpp) %>%
   pivot_longer(names_to = "Species", 
                values_to = "Captures", 
                cols = everything()) %>% 
-  ggplot(., aes(x=Captures, fill = Species) ) + 
-  geom_histogram(position = "dodge", binwidth = 1)
+  ggplot(., aes(x=Captures, color = Species) ) + 
+  geom_histogram(position = "identity", fill = NA, breaks = 0:8, na.rm=TRUE) + 
+  theme_bw()
 ```
 
 So I think that is a pretty reasonable summary of the data in terms of how often individuals of each species are captured.
@@ -171,32 +174,25 @@ apply(bySpp,
 
 So, it gives us the same basic information (with different formatting) as before. But we can use it more broadly, too.
 
-For instance, what do you think this will do?
+For instance, what do you think this will do? Seriously, take a second and think before running it.
 ```{r}
 #| output: false
 apply(smammals, 
       MARGIN = 2, 
-      FUN = min, na.rm = TRUE)
-```
-Really. Take a second and think before moving on...
-
-.  
-.  
-.  
-
-```{r}
-#| echo: false
-apply(smammals, 
-      MARGIN = 2, 
-      FUN = min, na.rm = TRUE)
+      FUN = min, na.rm=T)
 ```
 
+
+.  
+.  
+.  
 
 Notice that the data frame, `smammals` was coerced into a matrix which can only accommodate a single data type. In this case the lowest common denominator was `character`, so all of the columns became character types. 
 
 Try changing the the function or the margin to see if you understand how this works. Bonus points for trying it on one of your own data sets.
 
 Anyway, here in this context this function is a bit less useful than `tapply()`, but it _will_ be used a lot in this course. So consider this your gentle introduction to `apply()`. 
+
 
 
 # Example 2: Weather data from loggers
@@ -247,7 +243,7 @@ summary(climate$Date)
 So now `Date` is a real date and we can see that our data set goes from June 1 to August 31. That makes sense, so no (obvious) gremlins here!
 
 ::: {.callout-warning}
-Times of day are usually not dealt with independently of date^[There are probably some specific time-of-day formats, but they are special use cases.], which as cause me no shortage of frustration in the past. So let me just show you how to convert both the date and the time to a date-time column. In essence, we are going to paste together the two vectors with `paste()` and the provide the format of that date-time agglomeration.  
+Times of day are usually not dealt with independently of date^[There are probably some specific time-of-day formats, but they are special use cases.], which has caused me no shortage of frustration in the past. So let me just show you how to convert both the date and the time to a date-time column. In essence, we are going to paste together the two vectors with `paste()` and the provide the format of that date-time agglomeration.  
 ```{r}
 climate$DT <- strptime(paste(climate$Date, climate$Time), 
                        format = "%Y-%m-%d %H:%M:%S")
@@ -282,7 +278,7 @@ daily <- apply(X=daily_logger,
 head(daily)
 ```
 
-Before moving on, make sure you understand what those functions _do_. What happens if we didn't that that `na.rm=TRUE` in the command? Why?
+Before moving on, make sure you understand what those functions _do_. What happens if we didn't include the `na.rm=TRUE` in the command? Why?
 
 Finally, be sure you see whether this is what we actually wanted to produce. 
 
@@ -391,21 +387,56 @@ All of that makes it easier to use and maintain. But now, we want to use it.
 1. Plot mean daily VPD against date (with whatever plotting function you like), like we just did with temperature.
 
 ```{r}
+#| eval: false
+#| echo: false
+climate$VPD <- vpd(temperature=climate$Temperature, RH=climate$RH)
 
+ 
+daily_logger <- tapply(X = climate$VPD, 
+                       INDEX = list(climate$Date, 
+                                    climate$LoggerID), 
+                       FUN = mean)
+
+daily <- apply(X = daily_logger, 
+               MARGIN = 1,  
+               FUN = mean, na.rm=TRUE)
+
+daily <- data.frame(daily)
+ 
+daily$Date <- as.Date(rownames(daily))
+ 
+colnames(daily)[1] <- "MeanVPD"
 ```
 
 ```{r}
-
+#| eval: false
+#| echo: false
+ggplot(data = daily, aes(x=Date, y = MeanVPD)) + 
+  geom_line() + geom_point() + 
+  scale_x_date(minor_breaks = "week") +
+  scale_y_continuous("Mean daily vapor pressure deficit (kPa)")
 ```
 
 2. Plot the maximum VPD measured by each logger.
 
 
 ```{r}
-
+#| eval: false
+#| echo: false
+logger <- tapply(X = climate$VPD, 
+                 INDEX = climate$LoggerID, 
+                 FUN = max)
+logger <- data.frame(logger)
+logger$ID <- rownames(logger)
+ 
+colnames(logger)[1] <- "MaxVPD"
 ```
 
 ```{r}
-
-
+#| eval: false
+#| echo: false
+ggplot(data = logger, aes(x=MaxVPD, y = ID)) + 
+  geom_point() + 
+  scale_x_continuous("Maximum vapor pressure deficit (kPa)") +
+  labs(caption = "Not sure why I rotated the figure, but there you go")
 ```
