@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 <meta name="author" content="Jesse Brunner">
-<meta name="dcterms.date" content="2025-01-02">
+<meta name="dcterms.date" content="2025-01-04">
 
 <title>Lab 1: The R Shakedown</title>
 <style>
@@ -3271,7 +3271,7 @@ window.Quarto = {
     <div>
     <div class="quarto-title-meta-heading">Published</div>
     <div class="quarto-title-meta-contents">
-      <p class="date">January 2, 2025</p>
+      <p class="date">January 4, 2025</p>
     </div>
   </div>
   
@@ -3294,6 +3294,20 @@ window.Quarto = {
 <li>Introduce some base R functions we will see used frequently in the text</li>
 </ul>
 <p>On this last point, we are going to try to lean on the tools that McElreath uses, that is mostly base R functions, so that we can easily compare our work with his. I tend to use Tidyverse tools, myself, and there will be room for using whatever tools you like once you know what you are doing with them, but there is real value to <em>knowing</em> what he is doing in his examples because you are doing the same things.</p>
+<div class="callout callout-style-default callout-important callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Important
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>One of the best things about modern statistical computing is the widespread availability and use of scripts or workbooks. That latter, which includes text explanations of what it is you are doing, code to do it, and, once you run the file, the output, all seamlessly knitted together. In R/Rstudio that available with Quarto documents (<code>qmd</code> files). Eventually you might write entire scientific papers as Quarto documents, create presentations in Quarto, or even write a book using tools like Quarto! For this class our goal is more modest: we’ll just use these files to keep our text thoughts (context, goals, caveats, etc) and code + output in one place. So buckle up, our labs will all be completed in Quarto documents<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a>.</p>
+<p>For now, just go to File / New File / Quarto Document and follow the prompts to create a file for this lab. Save often, but whenever you want, hit the “Render” button at the top of the window and it will run the code in a new instance of R and create an output file (html, by default, but other format are available). When you want to share things with me, please be sure you use Quarto documents.</p>
+</div>
+</div>
 </section>
 <section id="example-1-small-mammals" class="level1">
 <h1>Example 1: Small mammals</h1>
@@ -3301,7 +3315,7 @@ window.Quarto = {
 <ol type="1">
 <li>load the data,</li>
 <li>check the data,</li>
-<li>make any adjustments that might be needed<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a>,</li>
+<li>make any adjustments that might be needed<a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a>,</li>
 <li>calculate summaries and make plots to ensure we understand what we are dealing with, and</li>
 <li>re-organize, summarize, or manipulate the data into the format we need, repeating prior steps as needed.</li>
 </ol>
@@ -3409,7 +3423,7 @@ window.Quarto = {
  $ Body    : int  NA 84 69 74 66 83 83 NA NA NA ...</code></pre>
 </div>
 </div>
-<p>Nothing seems terribly amiss, yet. In both of these ways we can see that every variable that is not obviously a number is treated as a character. We might want to change that using, for instance, <code>factor()</code> or <code>as.Date()</code><a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a>. Dates are the worst to deal with. Just a heads up that whenever you have dates in Excel you <em>must</em> check to see that R has interpreted things correctly. I can’t tell you how often my otherwise perfect code has been foiled by input that wasn’t actually the date I had thought it was. Anyway, for now, we can ignore everything but one: while <code>Tag</code>, referring to the ear tag, is really a categorical variable, R thinks it is an integer and will try to do math with it.</p>
+<p>Nothing seems terribly amiss, yet. In both of these ways we can see that every variable that is not obviously a number is treated as a character. We might want to change that using, for instance, <code>factor()</code> or <code>as.Date()</code><a href="#fn3" class="footnote-ref" id="fnref3" role="doc-noteref"><sup>3</sup></a>. Dates are the worst to deal with. Just a heads up that whenever you have dates in Excel you <em>must</em> check to see that R has interpreted things correctly. I can’t tell you how often my otherwise perfect code has been foiled by input that wasn’t actually the date I had thought it was. Anyway, for now, we can ignore everything but one: while <code>Tag</code>, referring to the ear tag, is really a categorical variable, R thinks it is an integer and will try to do math with it.</p>
 </section>
 <section id="adjust-the-variables" class="level2">
 <h2 class="anchored" data-anchor-id="adjust-the-variables">Adjust the variables</h2>
@@ -3495,7 +3509,7 @@ window.Quarto = {
  NA&#39;s   :92   </code></pre>
 </div>
 </div>
-<p>First, be sure you understood what’s happening here (i.e., how I’m subsetting the <code>smammals</code> data set by those where the condition is true and then getting a summary of this reduced data set<a href="#fn3" class="footnote-ref" id="fnref3" role="doc-noteref"><sup>3</sup></a>). The key to understanding is taking things in steps. What does the <code>smammals$Species == &quot;TAAM&quot;</code> command do? What does it mean if I insert it in brackets after the name of the data set? Figure it out before jumping to the next part of it. (And ask questions when they arise!)</p>
+<p>First, be sure you understood what’s happening here (i.e., how I’m subsetting the <code>smammals</code> data set by those where the condition is true and then getting a summary of this reduced data set<a href="#fn4" class="footnote-ref" id="fnref4" role="doc-noteref"><sup>4</sup></a>). The key to understanding is taking things in steps. What does the <code>smammals$Species == &quot;TAAM&quot;</code> command do? What does it mean if I insert it in brackets after the name of the data set? Figure it out before jumping to the next part of it. (And ask questions when they arise!)</p>
 <p>We could do something similar using the <code>tapply()</code> function:</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb17"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="fu">tapply</span>(<span class="at">X =</span> smammals<span class="sc">$</span>Body, </span>
@@ -3519,7 +3533,7 @@ $ZAPR
      83      83      83      83      83      83       2 </code></pre>
 </div>
 </div>
-<p>I like to think of this function as the “table” apply function because it first organizes our data like a data table, according to whatever index we’ve given it (here, <code>Species</code>), and then applies the function of our choice (here, <code>summary()</code>). Or, more specifically, it applies the function specified by <code>FUN</code> to the vector (or similar) specified by <code>X</code>, which is split into groups according to the variable specified by <code>INDEX</code>. We will see and use several <code>apply</code> functions in this class (mostly <code>apply()</code>, which we will see below, and <code>sapply()</code>). They are <em>not</em> always very intuitive, but they are very powerful and McElreath uses them frequently, so it behooves us to get used to them<a href="#fn4" class="footnote-ref" id="fnref4" role="doc-noteref"><sup>4</sup></a></p>
+<p>I like to think of this function as the “table” apply function because it first organizes our data like a data table, according to whatever index we’ve given it (here, <code>Species</code>), and then applies the function of our choice (here, <code>summary()</code>). Or, more specifically, it applies the function specified by <code>FUN</code> to the vector (or similar) specified by <code>X</code>, which is split into groups according to the variable specified by <code>INDEX</code>. We will see and use several <code>apply</code> functions in this class (mostly <code>apply()</code>, which we will see below, and <code>sapply()</code>). They are <em>not</em> always very intuitive, but they are very powerful and McElreath uses them frequently, so it behooves us to get used to them<a href="#fn5" class="footnote-ref" id="fnref5" role="doc-noteref"><sup>5</sup></a></p>
 <p>Anyway, we can see that we were missing data on <code>Body</code> length for all but PEMA and ZAPR, hence why they didn’t show up. Since we’re not really interested in this, we can move on, but it does highlight why <em>looking</em> at your data is important.</p>
 </section>
 <section id="re-organize-summarize-or-manipulate" class="level2">
@@ -3890,7 +3904,7 @@ Warning
 </div>
 </div>
 <div class="callout-body-container callout-body">
-<p>Times of day are usually not dealt with independently of date<a href="#fn5" class="footnote-ref" id="fnref5" role="doc-noteref"><sup>5</sup></a>, which has caused me no shortage of frustration in the past. So let me just show you how to convert both the date and the time to a date-time column. In essence, we are going to paste together the two vectors with <code>paste()</code> and the provide the format of that date-time agglomeration.</p>
+<p>Times of day are usually not dealt with independently of date<a href="#fn6" class="footnote-ref" id="fnref6" role="doc-noteref"><sup>6</sup></a>, which has caused me no shortage of frustration in the past. So let me just show you how to convert both the date and the time to a date-time column. In essence, we are going to paste together the two vectors with <code>paste()</code> and the provide the format of that date-time agglomeration.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb42"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a>climate<span class="sc">$</span>DT <span class="ot">&lt;-</span> <span class="fu">strptime</span>(<span class="fu">paste</span>(climate<span class="sc">$</span>Date, climate<span class="sc">$</span>Time), </span>
 <span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a>                       <span class="at">format =</span> <span class="st">&quot;%Y-%m-%d %H:%M:%S&quot;</span>)</span>
@@ -4034,7 +4048,7 @@ Warning
 </section>
 <section id="example-3-vapor-pressure-deficit-functions" class="level1">
 <h1>Example 3: vapor pressure deficit &amp; functions</h1>
-<p>The <code>climate</code> data set has temperature and humidity, but not vapor pressure deficit (VPD), a measure of the drying potential of the conditions<a href="#fn6" class="footnote-ref" id="fnref6" role="doc-noteref"><sup>6</sup></a>. That, however, can be calculated as: <span class="math display">\[
+<p>The <code>climate</code> data set has temperature and humidity, but not vapor pressure deficit (VPD), a measure of the drying potential of the conditions<a href="#fn7" class="footnote-ref" id="fnref7" role="doc-noteref"><sup>7</sup></a>. That, however, can be calculated as: <span class="math display">\[
 0.6108 \times \exp \left(17.27 \times \frac{T}{ (T + 237.3)}\right) \times \left(1-\frac{RH}{100}\right).
 \]</span></p>
 <p>Your final tasks are to use the tools we’ve seen already to calculate and plot the VPD over the site across all of the loggers, and plot the maximum VPD recorded by each logger as a quality control check. I will not show you the code—just the results—but I will give you one last tool to use.</p>
@@ -4048,7 +4062,7 @@ Warning
 <span id="cb58-3"><a href="#cb58-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">return</span>()</span>
 <span id="cb58-4"><a href="#cb58-4" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>The arguments in the parentheses of <code>function()</code> are what the function uses<a href="#fn7" class="footnote-ref" id="fnref7" role="doc-noteref"><sup>7</sup></a>. The thing in the parentheses of <code>return()</code> is what is given back. A function can only be one thing, but that thing can be a value, vector, list, and so on. So it can include a lot of stuff. Or nothing. So, anyway, a function that calculated the mean of two numbers could be written as:</p>
+<p>The arguments in the parentheses of <code>function()</code> are what the function uses<a href="#fn8" class="footnote-ref" id="fnref8" role="doc-noteref"><sup>8</sup></a>. The thing in the parentheses of <code>return()</code> is what is given back. A function can only be one thing, but that thing can be a value, vector, list, and so on. So it can include a lot of stuff. Or nothing. So, anyway, a function that calculated the mean of two numbers could be written as:</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb59"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb59-1"><a href="#cb59-1" aria-hidden="true" tabindex="-1"></a>mean2 <span class="ot">&lt;-</span> <span class="cf">function</span>(x1, x2){</span>
 <span id="cb59-2"><a href="#cb59-2" aria-hidden="true" tabindex="-1"></a>  m <span class="ot">&lt;-</span> (x1<span class="sc">+</span>x2)<span class="sc">/</span><span class="dv">2</span></span>
@@ -4124,13 +4138,14 @@ Warning
 <div id="quarto-appendix" class="default"><section id="footnotes" class="footnotes footnotes-end-of-document" role="doc-endnotes"><h2 class="anchored quarto-appendix-heading">Footnotes</h2>
 
 <ol>
-<li id="fn1"><p>We should fix mistakes in our data sets, but any modifications, calculations, or conversions should be done in code.<a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
-<li id="fn2"><p>or <code>lubridate::ymd()</code> in the Tidyverse<a href="#fnref2" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
-<li id="fn3"><p>And yes, this would be much easier to follow in the Tidyverse! But not all things are.<a href="#fnref3" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
-<li id="fn4"><p>Also note, in this case it would be easy to accomplish the same thing in the Tidyverse, but there are several cases we’ll see where it is <em>not</em> easy or transparent to do so. So let’s stick with base R stuff.<a href="#fnref4" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
-<li id="fn5"><p>There are probably some specific time-of-day formats, but they are special use cases.<a href="#fnref5" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
-<li id="fn6"><p>“The strain under which an organism is placed in maintaining a water balance during temperature changes is much more clearly shown by noting the vapor pressure deficit than by recording the relative humidity.”Anderson, D. B. 1936. Relative humidity or vapor pressure deficit. Ecology 17, no. 2: 277–282<a href="#fnref6" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
-<li id="fn7"><p>Functions often have sensible default values to use when the argument isn’t specified. You provide these in the function definition, e.g., as <code>argument1 = 10, argument2 = TRUE</code>.<a href="#fnref7" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn1"><p>Indeed, the labs and even most presentations are <em>written</em> as Quarto files, so you can look under the hood of anything!<a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn2"><p>We should fix mistakes in our data sets, but any modifications, calculations, or conversions should be done in code.<a href="#fnref2" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn3"><p>or <code>lubridate::ymd()</code> in the Tidyverse<a href="#fnref3" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn4"><p>And yes, this would be much easier to follow in the Tidyverse! But not all things are.<a href="#fnref4" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn5"><p>Also note, in this case it would be easy to accomplish the same thing in the Tidyverse, but there are several cases we’ll see where it is <em>not</em> easy or transparent to do so. So let’s stick with base R stuff.<a href="#fnref5" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn6"><p>There are probably some specific time-of-day formats, but they are special use cases.<a href="#fnref6" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn7"><p>“The strain under which an organism is placed in maintaining a water balance during temperature changes is much more clearly shown by noting the vapor pressure deficit than by recording the relative humidity.”Anderson, D. B. 1936. Relative humidity or vapor pressure deficit. Ecology 17, no. 2: 277–282<a href="#fnref7" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn8"><p>Functions often have sensible default values to use when the argument isn’t specified. You provide these in the function definition, e.g., as <code>argument1 = 10, argument2 = TRUE</code>.<a href="#fnref8" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
 </ol>
 </section></div></main>
 <!-- /main column -->

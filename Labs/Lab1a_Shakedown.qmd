@@ -22,6 +22,12 @@ Given all of this, my goals for this lab are to:
 
 On this last point, we are going to try to lean on the tools that McElreath uses, that is mostly base R functions, so that we can easily compare our work with his. I tend to use Tidyverse tools, myself, and there will be room for using whatever tools you like once you know what you are doing with them, but there is real value to _knowing_ what he is doing in his examples because you are doing the same things. 
 
+::: {.callout-important}
+One of the best things about modern statistical computing is the widespread availability and use of scripts or workbooks. That latter, which includes text explanations of what it is you are doing, code to do it, and, once you run the file, the output, all seamlessly knitted together. In R/Rstudio that available with Quarto documents (`qmd` files). Eventually you might write entire scientific papers as Quarto documents, create presentations in Quarto, or even write a book using tools like Quarto! For this class our goal is more modest: we'll just use these files to keep our text thoughts (context, goals, caveats, etc) and code + output in one place. So buckle up, our labs will all be completed in Quarto documents^[Indeed, the labs and even most presentations are _written_ as Quarto files, so you can look under the hood of anything!]. 
+
+For now, just go to File / New File / Quarto Document and follow the prompts to create a file for this lab. Save often, but whenever you want, hit the "Render" button at the top of the window and it will run the code in a new instance of R and create an output file (html, by default, but other format are available). When you want to share things with me, please be sure you use Quarto documents.
+:::
+
 # Example 1: Small mammals
 One of my former students conducted a capture-mark-recapture study at Smoot Hill. You can find the data set [online, here](https://s3.wp.wsu.edu/uploads/sites/1097/2019/08/Eilers.csv). In general, we need to: 
 
