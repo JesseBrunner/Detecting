@@ -8,7 +8,7 @@ format:
     embed-resources: true
     code-fold: false
 execute:
-  include: false
+  include: true
 ---
 
 Our goal is simply to practice using Bayesian models to 
@@ -33,20 +33,29 @@ Imagine we are interested in the prevalence of elk-hoof disease in a large^[Larg
 
 ## First survey
 FWP collected samples from 22 elk and found no evidence of disease in any of them. Fit a Bayesian model to these data assuming that we had no prior information about the prevalence, $p$, of this disease such that every possible value of $p$ was equally likely. Use a grid approximation to estimate the posterior.
+
+
 ```{r}
+# prior
+
+# likelihood
+
+# posterior
 
 ```
 
-Then let's use `sample()` to produce samples from the posterior. (What do we have now?)
+Then let's use `sample()` to produce samples from the posterior. 
 ```{r}
-#| include: true
+#| eval: false
+
+# sample the posterior
 samples <- sample(p_grid, prob=posterior, size=1e4, replace=TRUE)
 ```
 
 What does the distribution of these samples look like? 
+
 ::: {.callout-tip}
-## Hint
-Consider `hist(samples)`, `plot(density(samples))`, or `rethinking::dens(samples)`. Ggplot options are also fine.
+Consider `hist(samples)`, `plot(density(samples))`, or `rethinking::dens(samples)`. You can also use `ggplot` graphs is you prefer.
 :::
 
 Given this model and data, what is the most likely estimate of prevalence in this herd?
@@ -54,7 +63,7 @@ Given this model and data, what is the most likely estimate of prevalence in thi
 
 ```
 
-Your FWP colleagues would like to know the maximum prevalence consistent with these data at 905 confidence. That is, what is the upper 95% quantile of the posterior?
+Your FWP colleagues would like to know the maximum prevalence consistent with these data at 95% confidence. That is, what is the upper 95% quantile of the posterior?
 ```{r}
 
 ```
@@ -63,29 +72,47 @@ Your FWP colleagues would like to know the maximum prevalence consistent with th
 Imagine that following this initial survey a second survey found that one of 15 elk were diseased. What is does the posterior of the distribution look like now? What are you best estimates of prevalence (point estimate) and the 95th percentile of the posterior? Has the upper 95th quantile gotten narrower or wider? Why?
 
 ```{r}
+# prior
+
+# likelihood
+
+# posterior
 
 
 ```
 
 ```{r}
+# sample the posterior
 
 ```
 
 ```{r}
+# point estimate of prevalence
 
+# CI of posterior
 ```
 
 ## Second survey, ignoring the first
 Repeat this analysis of the second survey assuming we did not know about or excluded the first survey.
 
 ```{r}
- 
+# prior
+
+# likelihood
+
+# posterior
+
+# sample the posterior
+
+# point estimate of prevalence
+
+# CI of posterior
 ```
 
 What is the consequence of ignoring prior information?
 
 ## A posterior predictive check
-Finally, your FWP would like you to predict what the data from a future surveys of 30 elk might look like. They suggest you just use your best estimate of prevalence, but you would like to be sure your predictions of data account for parameter uncertainty. In the end you compromise and decide to present both. (Use the fit model that accounts for the data from both surveys.) 
+Finally, your FWP would like you to predict what the data from a future surveys of 30 elk might look like. They suggest you just use your best estimate of prevalence, but you would like to be sure your predictions of data account for parameter uncertainty as well as sampling variability. In the end you compromise and decide to present both. (Use the fit model that accounts for the data from both surveys.) 
 
 ```{r}
 # naive predictions of data, with point estimate
@@ -109,26 +136,40 @@ sum(birth1) + sum(birth2) # 111 males in total
 
 Using grid approximation, compute the posterior distribution for the probability of a birth being a boy. Assume a uniform prior probability. Which parameter value maximizes the posterior probability?
 ```{r}
+# prior
 
+# likelihood
+
+# posterior
 ```
 
 Using the `sample()` function, draw 10,000 random parameter values from the posterior distribution you calculated. Use these samples to estimate the 50%, 89%, and 97% highest posterior density intervals.
 ```{r}
- 
+# sample the posterior
+
+# CIs of posterior
 ```
 
 Use `rbinom()` to simulate 10,000 replicates of 200 births, accounting for parameter uncertainty. You should end up with 10,000 numbers, each one a count of boys out of 200 births. Compare the distribution of predicted numbers of boys to the actual count in the data (111 boys out of 200 births). Does it look like the model fits the data well? That is, does the distribution of predictions include the actual observation as a central, likely outcome?
 ```{r}
- 
+# simulate from posterior
+
+# compare posterior predictive simulation to actual data
 ```
 
 Now compare 10,000 counts of boys from 100 simulated first-borns only to the number of boys observed among the first births, `birth1`. How does the model in this light?
 ```{r}
+# simulate from posterior
+
+# compare posterior predictive simulation to actual data
  
 ```
 
 The model assumes that sex of first and second births are independent. To check this assumption, focus now on second births that followed female first-borns. Compare 10,000 simulated counts of boys to only those second births that followed girls. To do this correctly, you need to count the number of first-borns who were girls and simulate that many births, 10,000 times. Compare the counts of boys in your simulations to the actual observed count of boys following girls How does the model look in this light? Any guesses what is going on in these data?
 ```{r}
+# simulate from posterior
+
+# compare posterior predictive simulation to actual data
  
 ```
 
