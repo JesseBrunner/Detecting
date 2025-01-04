@@ -34,12 +34,15 @@ Imagine we are interested in the prevalence of elk-hoof disease in a large^[Larg
 ## First survey
 FWP collected samples from 22 elk and found no evidence of disease in any of them. Fit a Bayesian model to these data assuming that we had no prior information about the prevalence, $p$, of this disease such that every possible value of $p$ was equally likely. Use a grid approximation to estimate the posterior.
 ```{r}
+# prior
 p_grid <- seq(0, 1, length.out = 1000)
 prior <- rep(1,1000)
+# likelihood
 prob_data <- dbinom(0, size=22, prob = p_grid)
+# posterior
 posterior <- prob_data * prior
 posterior <- posterior/sum(posterior)
-plot(p_grid, posterior, type = "l")
+plot(p_grid, posterior, type = "b")
 ```
 
 Then let's use `sample()` to produce samples from the posterior. (What do we have now?)

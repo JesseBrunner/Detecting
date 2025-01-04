@@ -12,45 +12,57 @@ format:
 -  Follow instructions with single-minded purpose
 -  Only "know" what they are told to do
 
-::: {.fragment}
-Cannot tell us what is "right", "True", or even "OK to say"
+::: {.fragment .fade-up}
+Cannot tell us what is "right" or "True"
 :::
 
-::: {.fragment}
-Let's not treat our Golems (statistics) as police
+::: {.fragment .fade-up}
+Cannot even tell us what is "OK to say" (_not_ police!)
 :::
 
-::: {.fragment}
-We must treat our Golems as tools
+::: {.fragment .fade-up}
+Golems are _tools_
 :::
 
 ## Why can't golems _rule out_ or _falsify_ hypotheses?
 
-1.  Hypotheses are not models (and as we will see, golems only know deal with models)
+1.  Hypotheses are not models^[golems only know how to deal with models]
 
 -  One hypothesis might be represented by many model**s**
 
+::: {.fragment .fade-in}
 _Hypothesis_: pathogen transmission is shaped by variability in susceptibility
 
 _Models_: $\beta I^p S^q$, $ks \ln\left(1+\frac{\beta I}{k}\right)$, $\frac{\beta S I}{c+S+I}$, ...
+:::
 
 ## Why can't golems _rule out_ or _falsify_ hypotheses?
 
-1.  Hypotheses are not models (and as we will see, golems only know deal with models)
+1.  Hypotheses are not models 
 
 -  One hypothesis might be represented by many model**s**
 -  One model might be consistent with many hypothese**s**
 
-_All of those models might come from heterogeneity in susceptibility, but also spatial or contact structure, etc._
+::: {.fragment .fade-in}
+_All_ of those models might come from heterogeneity in susceptibility...
+
+but also come from spatial or contact structure, etc.
+:::
+
 
 ## Why can't golems _rule out_ or _falsify_ hypotheses?
 
-1.  Hypotheses are not models (and as we will see, golems only know deal with models)
+1.  Hypotheses are not models
 2.  Measurements matter
 -  Observation error: _uncertainty in what we observe, biases, measurement error_
 -  Hypotheses are continuous: _X is more/less important, not simply T/F_
 
-_How do we measure heterogeneity? How much counts as a lot?_
+::: {.fragment .fade-in}
+How close is close/far enough?  
+Any threshold or decision rule is arbitrary
+:::
+
+
 
 ## Let's simulate some data {.smaller}
 
@@ -77,17 +89,21 @@ _How do we measure heterogeneity? How much counts as a lot?_
 | 19    |       |               |
 | 20    |       |               |
 
+
 ## Why can't golems _rule out_ or _falsify_ hypotheses?
 
-1.  Hypotheses are not models (and as we will see, golems only know deal with models)
+1.  Hypotheses are not models
 2.  Measurements matter
-3.  We make inference about hypotheses as a group, by consensus
+3.  We make inference as a group, by consensus, outside of routines
 
-## Science is not a series of statistical proceedures
+::: {.fragment .highlight-red} 
+Science is not a series of statistical procedures!
+::: 
 
-::: {.fragment}
-**We must be the captains of our own ship**
+:::  {.fragment .fade-in}
+**We must be the captains of our own ships**
 :::
+
 
 
 ## What do you want from your statistics?
@@ -111,7 +127,7 @@ Understand **causation**?
 
 ::::
 
-::: {.fragment .center}
+::: {.fragment .highlight-red}
 _These are not the same_
 :::
 
@@ -138,10 +154,22 @@ Understand **causation**?
 
 ::::
 
-::: {.fragment .center}
-What is good for prediction _may not_ be good for understanding causation
+::: {.fragment .highlight-red}
+Good prediction $\neq$ causation
 :::
 
-::: {.fragment .center}
-But all of this requires statistical golems
+## You are the captiain of your own ship
+
+You must learn to 
+
+* think carefully and skeptically (theory, DAGs, etc.)
+* be specific about what you want to know (estimands)
+* see the consequences of the assumptions you are making (simulations)
+* understand and embrace uncertainty (distributions)
+* dive into the weeds! (this class)
+
+::: {.fragment .highlight-red}
+Analysis is not an easy afterthought after the hard work of collecting the data... 
+It is a core part of the whole process!
 :::
+
