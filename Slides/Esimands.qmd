@@ -21,7 +21,11 @@ We often collect data and then hope statistics will give us answers, but...
 *  What are we trying to get at? 
 *  What are  or estimate?
 
+<<<<<<< HEAD
 ::: {.fragment .fade-in}
+=======
+::: {.fragment .highlight-red}
+>>>>>>> 1bb78aa167f13e5b7d7e02fc3331052a8e29c4c5
 The answer is to define your estimand
 :::
 
