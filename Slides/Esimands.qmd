@@ -1,0 +1,125 @@
+---
+title: "What are estimands and why you should think about them? "
+subtitle: "Or why do statistics if you don't even know what you want to estimate and whether its meaningful?"
+author: "Jesse Brunner"
+format: 
+  revealjs:
+    embed-resources: true
+---
+
+```{r}
+#| include: false
+library(rethinking)
+library(dagitty)
+```
+
+## The problem
+
+We often collect data and then hope statistics will give us answers, but...
+
+* Answers to what question(s)? 
+*  What are we trying to get at? 
+*  What are  or estimate?
+
+::: {.fragment .highlight-red}
+The answer is to define your estimand
+:::
+
+
+##    
+
+"Every quantitative study must be able to answer the question: what is your estimand? The estimand is the target quantity—the purpose of the statistical analysis."
+
+::: aside
+-- Lundberg, I., R. Johnson, and B. M. Stewart. 2021. What Is Your Estimand? Defining the Target Quantity Connects Statistical Evidence to Theory. American Sociological Review 86:532-565.
+:::
+
+
+## 
+![From Lundberg et al. 2021](Lundberg.png)
+
+
+## Theoretical estimand
+
+What is the thing you want to learn or measure _without reference to the model or statistics?_ 
+
+-   Can be casual or descriptive or come from theory
+-   Can involve unobserved (or unobservable) variables 
+
+::: {.fragment .highlight-red}
+E.g., What is the maximum rate at which aquatic invertebrates can scavenge carcasses of long-toed salamander larvae (_Ambystoma macrodactylum_)? At what density of carcass is a single invertebrate saturated?
+::: 
+
+
+## Theoretical estimand
+
+Two parts:
+
+1.  Unit-specific quantity (defined for each unit of observation in a population) 
+    * realized outcome
+    * potential outcome
+    * difference in potential outcomes with interventions
+
+::: {.fragment .highlight-red}
+Estimate a scavenger's maximum rate of carcass consumption and the carcass density at which they approach that maximum
+:::
+
+## Theoretical estimand
+
+Two parts:
+
+1.  Unit-specific quantity 
+2.  Target population (i.e., what's your inference about?) 
+    * empirically tractable
+    * of theoretical interest itself
+    *  informative of a broader population (_address the tension_)
+
+::: {.fragment .highlight-red}
+Focus on _Dytiscid_ beetle larvae because they represent an extreme in scavenging rates & are common in ponds
+:::
+
+## Empirical estimand
+
+Links theoretical estimand to the data you actually observe
+
+Requires some "identification assumptions" to help us understand what part(s) of the statistical estimation machinery relate to which theoretical influence. 
+
+::: {.fragment .highlight-red}
+E.g., _Dytiscid_ larvae assigned _randomly_ to carcass treatments. No other food sources or con/heterspecifics present that might affect scavenging rates.
+:::
+
+## Empirical estimand
+
+What are you estimating from the data? (e.g., a difference, a mean effect of $x$ on $y$ after accounting for $a$, $b$, and $c$; a slope, a maximum, ...) 
+
+::: {.fragment .highlight-red}
+Want to estimate $h$ in $\mu_i = \frac{ac_i}{1+ac_ih}$
+:::
+
+
+## How do we do this?
+
+**Theoretical estimand**
+
+* Think carefully and ask the Big Question (what do you want to know/learn?)
+* read the literature
+* Talk to your advisor, colleagues, lab
+* Draw pictures
+
+
+## How do we do this?
+
+**Empirical estimand**
+
+* Draw pictures and graphs
+* Consider what else affects the variable of interest (and thus might mess up your empirical estimand)
+    * confounding, colliders, etc.
+    * We will learn about DAGs later
+*  Simulate data and try methods
+
+
+
+
+
+
+
