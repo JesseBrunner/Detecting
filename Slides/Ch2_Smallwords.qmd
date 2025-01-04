@@ -44,26 +44,41 @@ Most formulas for probabilities are just short-cuts for counting (or integrating
 _Note_: This formula provides us a short-cut for calculating the probability of observing $k$ of $n$ "successes" _given_ a particular value of the **parameter** $p$.
 
 
-## Bayes theorem {auto-animate=true}
+## Don't fret! Just think of constraints!
 
+We choose statistical distributions because of 
+
+1.  Theory (someone else figured it out for you!)
+
+2.  Constraints (stuff you know)
+    * Discrete vs. continuous?
+    * Bounded? Positive?
+    * A/symmetric?
+
+We will learn along the way
+
+## Bayes theorem 
 \begin{align} 
 \Pr(p_i | k) &= \frac{\text{Probability of data} | p_i\times \text{Prior probability of }p_i}{\text{Probability of the data overall}} 
 \end{align}
 
-## Bayes theorem {auto-animate=true}
+::: {.fragment .fade-in}
+But let's not get caught up in the math! (Watch the 3B1B video... it's better!)
+:::
 
-\begin{align}
-\Pr(p_i | k) &= \frac{\text{Probability of data} | p_i\times \text{Prior probability of }p_i}{\text{Probability of the data overall}} \\
-&= \frac{\Pr(k \text{ of } n | p_i) \times Pr(p_i)}{Pr(k)} 
-\end{align}
+## Bayes theorem 
 
-## Bayes theorem {auto-animate=true}
+![](3B1B_Bayes.png)
 
-\begin{align}
-\Pr(p_i | k) &= \frac{\text{Probability of data} | p_i\times \text{Prior probability of }p_i}{\text{Probability of the data overall}} \\
-&= \frac{\Pr(k \text{ of } n | p_i) \times Pr(p_i)}{Pr(k)} \\
-&= \frac{\Pr(k \text{ of } n | p_i) \times Pr(p_i)}{\sum_{i=1}^n \Pr(k \text{ of } n | p_i) \times Pr(p_i)}
-\end{align}
+##  A Bayesian modeling perspective
+
+* Generative models _are_ Bayesian models 
+  * start from there... takes longer, but more powerful
+* Workflow is important
+* Variables: data are observed variables, parameters are unobserved variables
+* Distributions: likelihoods and priors are both distributions
+* Indexing: there is no random or fixed effects, just indexed variables
+
 
 ## Parts of the model {.smaller .incremental}
 
