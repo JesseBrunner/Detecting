@@ -1,0 +1,73 @@
+---
+title: "Lab 2: Let's simulate data from your own system"
+author: "Jesse Brunner"
+date: "`r Sys.Date()`"
+format: 
+  html:
+    toc: true
+    embed-resources: true
+    code-fold: false
+execute:
+  include: true
+---
+
+## Overview
+Our goal for today is essentially to use the super power of simulating data for your own purposes in your own system.  You should follow my example, at least in rough outline, although the process does not always work in simple linear progression. Don't be surprised if you have to return to earlier steps or skip forward to see what you'll be using something for. 
+
+Here are the basic steps I want you to take:
+
+1. Identify and describe as best you can 
+    a. the study or experiment you are interested focusing on^[Keep it small and tractable. You can always add complexity later, if you need.]
+    b. the measurements and responses (i.e., data) you have or will have. In particular, think about the constraints on these variables (e.g., integer vs. continuous, positive or otherwise bounded, theoretical constraints).
+    c. the expected relationship between these variables _in math_. Bonus points for writing out the whole generative model the way I showed in the example.
+    d. what you want to learn from simulation (e.g., What might the data look like if I am right about how it works or if the effect is more subtle? Can I estimate the thing I want to estimate without bias? How does the precision of my estimate change with increasing sample sizes or distribution of samples? Is there a better design?)
+2. Create the predictor variable(s). I.e., assign the values you will use or simulate observations that seem reasonable, being sure to follow the constraints you identified.
+3. Use the mathematical relationship you defined above to calculate the expected values (e.g., mean) of the response variable.
+4. Use the constraints on the response variable to choose a statistical distribution (e.g., normal, binomial, exponential, Poisson) and then use that to generate fake observed values of the response variable. 
+5. Use these steps (2--4) to _do_ something (i.e., what you identified in 1d)
+
+To be clear, I suspect you will get stuck here and there, while working through this process. That's learning. I am here to help, so don't hesitate to ask questions. But I also think that you might get the sense that this is simpler than you expected, to ask, "Is that it?!" And yes, that might be it. Simple is OK.
+
+**Put your work in the `qmd` version of this document!** It will be your record of what you did, what you found, and how it all worked. Get in that habit of working with these sorts of "knited" files.
+
+## 1a. Describe the study or experiment 
+
+
+## 1b. Describe4 measurements and responses (i.e., data) and their constraints
+
+
+## 1c. Describe the expected relationship between variables 
+
+Try to use the conventions I showed. If you want to be fancy, I can show you how to use $\LaTeX$ to typeset the equations in a pretty way, but honestly, chicken scratch on a scrap of paper or using the whiteboard is also just fine. 
+
+
+## 1d. Describe the goal(s) of your simulation efforts
+
+
+## 2. Generate the (fake) predictor variable(s) 
+
+```{r}
+
+```
+
+
+## 3. Calculate the expected values (e.g., mean) of the response variable
+
+```{r}
+
+```
+
+
+## 4. Generate (fake) observed values of the response variable
+
+```{r}
+
+```
+
+## 5. _Do_ the thing(s) you identified in 1d
+
+```{r}
+
+```
+
+Be sure to write down what you learned from your efforts!
