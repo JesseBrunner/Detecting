@@ -173,4 +173,24 @@ Analysis is not an easy afterthought after the hard work of collecting the data.
 It is a core part of the whole process!
 :::
 
- 
+## Simulation is a super power {auto-animate=true}
+
+![](Simulation1.png)
+
+## Simulation is a super power {auto-animate=true}
+
+![](Simulation2.png)
+
+## Simulation is a super power {auto-animate=true}
+
+![](Simulation3.png)
+
+## Simulation is a super power {auto-animate=true}
+
+![](Simulation4.png)
+
+## Simulation is a super power {auto-animate=true}
+
+![](Simulation5.png)
+
+
