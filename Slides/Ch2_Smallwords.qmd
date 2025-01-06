@@ -82,13 +82,16 @@ But let's not get caught up in the math! (Watch the 3B1B video... it's better!)
 
 ## Parts of the model {.smaller .incremental}
 
--  Data (e.g., water or land in globe-flipping example)
--  Description of the distribution of the data | parameters (NB: likelihood)
-    * $W \sim \text{binomial}(n, p)$
-    * can also involve description of how parameters vary with data
-        - (e.g., $\text{logit}(p_i) = \alpha + \beta \times x_i$)
-- Description of the prior probability of the parameters
-    * $p \sim \text{beta}(1, 2)$
+-  Describe the **distribution of the data** | parameters (AKA _likelihood_)
+    * $W \sim \text{binomial}(n, p)$ in globe-flipping example
+      * $W$ is number times thumb was on water 
+      * $n$ is number of flips
+      * $p$ is the parameter we are trying to estimate
+    * can also involve description of how parameters relate
+        - E.g., $\text{logit}(p_i) = \alpha + \beta \times x_i$
+- Description of the **distribution of parameters _prior_ to observing the data**
+    * $p \sim \text{beta}(1, 2)$ 
+    * What is possible (and more/less probable) prior to observing data?
 -  Some engine to do the calculations
     * integration (nope) & conjugate priors (sometimes you get lucky!)
     * grid approximation

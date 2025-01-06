@@ -7,6 +7,99 @@ format:
 ---
 
 
-Calc posterior
-Use whole distribution
-posterior predictive distr
+## Parts of the model {.smaller .incremental}
+
+-  Describe the **distribution of the data** | parameters (AKA _likelihood_)
+    * $W \sim \text{binomial}(n, p)$ in globe-flipping example
+      * $W$ is number times thumb was on water 
+      * $n$ is number of flips
+      * $p$ is the parameter we are trying to estimate
+    * can also involve description of how parameters relate
+        - E.g., $\text{logit}(p_i) = \alpha + \beta \times x_i$
+- Description of the **distribution of parameters _prior_ to observing the data**
+    * $p \sim \text{beta}(1, 2)$ 
+    * What is possible (and more/less probable) prior to observing data?
+-  Some engine to do the calculations
+    * integration (nope) & conjugate priors (sometimes you get lucky!)
+    * grid approximation
+    * quadratic approximation (`quap()`)
+    * MCMC, WinBugs, JAGS, **Stan** (`ulam()`)
+
+## Building a model
+
+If you can simulate it with a generative model, you have (largely) defined the model!
+
+So start by simulating!
+
+Futz, understand, iterate
+
+## Writing down the model
+
+$$
+\begin{align}
+W \sim& \text{Binomial}(N, p) \\
+p \sim& \text{Uniform}(0,1)
+\end{align}
+$$
+
+## Do the steps by hand {.smaller}
+
+1. Define the prior
+    * `p_grid <- seq(from=0, to=1, length.out=1000)`
+    * `prob_p <- rep(1, 1000)`
+
+2. Generate the expectations | parameter(s)
+    * Here the expectation is just defined by $p$
+
+3. Calculate the likelihood (of observing the data | the expectations)
+    * `prob_data <- dbinom(6, size=9, prob=p_grid)`
+
+4. Calculate the posterior 
+    * `posterior <- prob_data * prob_p`  $\leftarrow$ top part of Bayes
+    * `posterior <- posterior / sum(posterior)` $\leftarrow$ dividing by sum to standardize
+
+## Do the steps with `quap()` or whatever
+
+```{r}
+#| echo: true
+library(rethinking)
+W <- 6
+N <- 9
+m <- quap(
+  alist(
+    W ~ dbinom( N , p ) ,
+    p ~ dunif( 0 , 1 )
+  ), data=list(W=W, N=N)
+)
+precis(m)
+```
+
+## Do stuff with the model
+
+The results are the _whole_ posterior
+
+Can extract samples from the posterior to do _most anything_
+
+::: {.fragment .highlight-red}
+What do you want to do? What do you want to learn?
+:::
+
+## Do stuff with the model
+
+Things you might want to do
+
+* Consider the distribution of parameters if they are meaningful
+  * plots, intervals, etc.
+* Calculate _expectations_ for results given samples of posterior
+  * plot, often with your data (good reality check)
+* Calculate _possible data_ given samples of posterior & likelihood
+  * plot, usually with your data (good to see if your model is "good enough")
+
+## How to avoid confusion
+
+Keep track of what you are doing and why
+
+Investigate the results of every. Single. Step. 
+
+Keep your eye on the thing(s) you want out of the analysis
+
