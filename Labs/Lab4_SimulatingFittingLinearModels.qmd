@@ -70,23 +70,45 @@ Now that you are happy with the priors, please fit this model to the actual !Kun
 ```{r}
 # Grid approximation
 
+# calculate likelihood
+
+# calculate posterior
+
+# examine posterior
+
 ```
 
 ## Fitting a simple linear model with `quap()`
 
-Let's admit it, grid approximation is clunky and slow. I, for one, keep finding that I haven't considered a wide enough range of parameters, but also that my grid is too coarse. Plus, it's quite easy to screw up the coding. The quadratic approximation that McElreath provided addresses some of these problems and gets us closer to using more modern, general-purpose tools. So let's repeat our above analysis using `quap()`.
+Let's admit it, grid approximation is clunky and slow. I, for one, keep finding that I haven't considered a wide enough range of parameters, but also that my grid is too coarse. Plus, it's quite easy to screw up the coding. The quadratic approximation that McElreath provided addresses some of these problems and gets us closer to using more modern, general-purpose tools. So let's repeat our above analysis using `quap()`. I've given you a skeleteon of the code this first time, but please refer back to the text for examples.
 
 ```{r}
+#| eval: false
 # quap version
+m <- quap(
+  alist(
+   ## MODEL GOES HERE
+  ), data=df
+)
 
+precis(m)
 ```
 
 
 ## Interpretting parameters
-Examine the posterior of the key parameters (plots are helpful!) telling me what you think they tell you.
+Examine the posterior of the key parameters (plots are helpful!) telling me what you think they tell you. Remember, you might night need to extract samples with the well-named `extract.samples()` function.
+
+```{r}
+
+```
 
 
-If you have not yet examined the potential relationship between the parameters $a$ and $b$, do so here and tell me what you conclude.
+If you have not yet examined the potential relationship between the parameters $a$ and $b$, do so here and tell me what you conclude. (That is, plot samples of `a` against samples of `b`... What should they look like? What do they look like?)
+
+```{r}
+
+```
+
 
 
 
@@ -106,6 +128,14 @@ You may need to reconsider your priors. Do so and then fit the model with `quap(
 
 ```
 
+```{r}
+# fit revised model
+
+# examine posterior samples
+
+```
+
+
 How did this change your results? In particular, what happened to the relationship between the parameters $a$ and $b$? Why? Similarly, how did the interpretation of the parameter $a$ change?
 
 
@@ -114,7 +144,9 @@ How did this change your results? In particular, what happened to the relationsh
 So far we have not compared the model-expected relationship between weight and height and the actual relationship observed in the data. Let's do so now.
 
 ```{r}
+# plot the observed data
 
+# add lines representing posterior draws (maybe use the curve fxn)
 ```
 
 How well does our model describe the general features of the data? 
