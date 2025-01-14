@@ -166,7 +166,7 @@ mean_c <- 1 # 1 g
 n_carc <- c( rep(1, 5), rep(2, 5), rep(5, 3), rep(8, 3), rep(10, 2) ) # number of carcasses in each aquarium
 carc <- rnorm(n=18, mean = mean_c*n_carc, sd = 0.25) # carcass weights in each aquarium
 mu <- a * carc
-obs <- rlnorm(n, meanlog = log(mu), sdlog =1/2)
+obs <- rlnorm(n, meanlog = log(mu), sdlog =1/3)
 
 plot(obs ~ carc, col = "red") # observations
 lines(mu ~ carc) # predicted line
@@ -213,7 +213,7 @@ for(i in 1:nrow(sim_results)){
   # make a simulated data set
   carc <- rnorm(n=18, mean = mean_c*n_carc, sd = 0.25) # carcass weights in each aquarium
   mu <- sim_results$a_tru[i] * carc
-  obs <- rlnorm(n, meanlog = log(mu), sdlog =1/2)
+  obs <- rlnorm(n, meanlog = log(mu), sdlog =1/3)
   
   # fit a model
   m <- lm(obs ~ carc - 1) # the "-1" means no intercept
@@ -257,10 +257,10 @@ $$
 \text{mass}_i &\sim \text{Lognormal}(\log(\mu_i), \log(\sigma)) \\
 \mu_i &= a \times c_i \\
 a &= 0.5 \\
-\log(\sigma) &= 0.5
+\log(\sigma) &= 0.333
 \end{align}
 $$
-Starting with the first line, this means that the remaining mass observed in aquarium $i$ is distributed (that's what the $\sim$ means) as a lognormal with a mean on the the log scale of $\log(\mu_i)$ and a standard deviation on the log scale of $\log(\sigma)$. The corresponds to the `rlnorm(n, meanlog = log(mu), sdlog =1/2)` statement in our code. 
+Starting with the first line, this means that the remaining mass observed in aquarium $i$ is distributed (that's what the $\sim$ means) as a lognormal with a mean on the the log scale of $\log(\mu_i)$ and a standard deviation on the log scale of $\log(\sigma)$. The corresponds to the `rlnorm(n, meanlog = log(mu), sdlog =1/3)` statement in our code. 
 Next we specify the relationship between the amount of carcass mass available ($c_i$) and the expected amount consumed ($\mu_i$). Note that the expectation is not distributed; it is simply equal to $a \times c_i$. This line is often more complicated, but is frequently a linear model like we see here. In our code this was `mu <- a * carc`. 
 
 Finally, the last two lines tell us what values the two parameters, $a$ and $\sigma$, can take. Here they are both single constants, but we might instead allow them to vary, with some constraints. For instance, we might simulate $a$ as coming from a normal distribution with a mean of 0.5 and and a standard deviation of 0.1 (`a <- rnorm(n=1, mean=0.5, sd=0.1)`) in which case we would write it as $a \sim \text{Normal}(0.5, 0.1)$. Notice that we constrained the value of $\sigma$ to be 0.5 _on the natural logarithmic scale_. We could also have just said that $\sigma = \exp(0.5) = 1.648721$, but this is sometime simpler to understand. 
@@ -311,7 +311,7 @@ mean_c <- 1 # 1 g
 n_carc <- c( rep(1, 5), rep(2, 5), rep(5, 3), rep(8, 3), rep(10, 2) ) # number of carcasses in each aquarium
 carc <- rnorm(n=18, mean = mean_c*n_carc, sd = 0.25) # carcass weights in each aquarium
 mu <- a*carc/(1 + a*carc*h)
-obs <- rlnorm(n, meanlog = log(mu), sdlog =1/2)
+obs <- rlnorm(n, meanlog = log(mu), sdlog =1/3)
 
 plot(obs ~ carc, col = "blue") # observations
 curve(a*x, col = "red", add = T) # expectation for Type I
