@@ -8,20 +8,24 @@ format:
 
 ## What are we uncertain about?
 
-* Parameters _prior_ to data (posterior)
+* Parameters _prior_ to data (prior)
 * Parameters _after_ data (posterior)
+
+::: {.fragment .highlight-red}
 * _Expectations_ (before or after data) given parameter uncertainty
 * _Observations_ given sampling variability only 
 * _Future_ (potential) observations given parameter uncertainty _and_ sampling variability
+:::
 
 
-## Some of the effort comes from complex models, interactions, and distributions
+## Relating parameters to expectations or potential observtions is hard
 
-What does $k$ mean or _do_ in the equation: $ks \ln\left(1+\frac{\beta I}{k}\right)$? 
-
-What does an interaction between dose and strain mean in a logistic regression? How does this change if infection is likely or unlikely? 
-
-What does the shape parameter, $\alpha$ do in a Gamma distribution? 
+* complex models
+    - What does $k$ mean or _do_ in the equation: $ks \ln\left(1+\frac{\beta I}{k}\right)$? 
+* interactions between parameters ("levels" of predictors)
+    - What does an interaction between dose and strain mean in a logistic regression? How does this change if infection is likely or unlikely? 
+* unintuitive distributions
+    - What does the shape parameter, $\alpha$ do in a Gamma distribution? 
 
 ## Parameter uncertainty prior to data {auto-animate=true}
 
@@ -42,21 +46,32 @@ $\therefore$ use **prior predictive simulation**
 ![](PriorPredictive45.png)
 
 
-## Paramter uncertainty _after_ data {auto-animate=true}
+## Parameter uncertainty _after_ data: **posterior** distributions {auto-animal=true}
+To the extent parameters are meaningful/interpretable (e.g., a slope) you can: 
 
-This (un)certainty is reflected in the **posterior** distributions
+1.  Plot/consider the _whole_ (marginal) distribution 
+2.  Use _intervals_ to highlight parameter values most consistent with data (and model and prior)
+    
 
-To the extent parameters are meaningful/interpretable on their own (e.g., a slope) you can construct CIs and HDPIs, and other features of the _marginal_ posterior distributions
+## Parameter uncertainty _after_ data: **posterior** distributions {auto-animal=true}
 
-What they say about expectations on the _response_ scale can be hard to grok
+2.  Use _intervals_ to highlight parameter values most consistent with data (and model and prior)
+      - Intervals of defined boundaries (e.g., $p>0.5$)
+      - Intervals of defined mass / "compatibility intervals"
+          * Percentile intervals (PI) have the same mass in each tail
+          * Highest posterior density intervals (HPDI) are the narrowest interval with a given mass 
+
+## Uncertainty in expecations _after_ data {auto-animate=true}
+
+What parameters say about expectations on the _response_ scale can be hard to grok
 
 ::: {.fragment .fade-up}
 $\therefore$ **plot posterior inference** (e.g., against data)
 :::
 
-## Paramter uncertainty _after_ data {auto-animate=true}
+## Uncertainty in expecations _after_ data {auto-animate=true}
 
-What they say about expectations on the responses scale can be hard to grok
+What parameters say about expectations on the responses scale can be hard to grok
 
 $\therefore$ **plot posterior inference** (e.g., against data)
 
@@ -79,3 +94,9 @@ What they say about the distribution of (future) data can be hard to grok
 
 $\therefore$ use **posterior predictive simulation**
 ![](PostPredictiveInterve410.png)
+
+## Which graph or interval to use?
+
+As always, the key questions is _what do you want to know?_
+
+Just be clear about the uncertainty you are or are not showing/including
