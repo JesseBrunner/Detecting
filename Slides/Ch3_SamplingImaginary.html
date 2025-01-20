@@ -1240,6 +1240,20 @@ Jesse Brunner
 <li><span class="math inline">\(p \sim \text{beta}(1, 2)\)</span></li>
 <li>What is possible (and more/less probable) prior to observing data?</li>
 </ul></li>
+<li>Some engine to do the calculations</li>
+</ul>
+</section>
+<section id="parts-of-the-model-1" class="slide level2 smaller incremental">
+<h2>Parts of the model</h2>
+<ul>
+<li>Describe the <strong>distribution of the data</strong> | parameters (AKA <em>likelihood</em>)
+<ul>
+<li>can also involve description of how parameters relate</li>
+</ul></li>
+<li>Description of the <strong>distribution of parameters <em>prior</em> to observing the data</strong>
+<ul>
+<li>What is possible (and more/less probable) prior to observing data?</li>
+</ul></li>
 <li>Some engine to do the calculations
 <ul>
 <li>integration (nope) &amp; conjugate priors (sometimes you get lucky!)</li>
@@ -1287,8 +1301,8 @@ p \sim&amp; \text{Uniform}(0,1)
 </ul></li>
 </ol>
 </section>
-<section id="do-the-steps-with-quap-or-whatever" class="slide level2">
-<h2>Do the steps with <code>quap()</code> or whatever</h2>
+<section id="do-the-steps-with-quadratic-approximation-quap" class="slide level2">
+<h2>Do the steps with quadratic approximation, <code>quap()</code></h2>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb1"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href></a><span class="fu">library</span>(rethinking)</span>
 <span id="cb1-2"><a href></a>W <span class="ot">&lt;-</span> <span class="dv">6</span></span>
@@ -1302,11 +1316,23 @@ p \sim&amp; \text{Uniform}(0,1)
 <span id="cb1-10"><a href></a><span class="fu">precis</span>(m)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>       mean        sd      5.5%     94.5%
-p 0.6666664 0.1571338 0.4155362 0.9177966</code></pre>
+p 0.6666666 0.1571338 0.4155364 0.9177967</code></pre>
 </div>
 </div>
 </section>
 <section id="do-stuff-with-the-model" class="slide level2">
+<h2>Do stuff with the model</h2>
+<p>The results are the <em>whole</em> posterior</p>
+<p>Extract samples from the posterior from grid approximation:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href></a>samples <span class="ot">&lt;-</span> <span class="fu">sample</span>( pgrid, <span class="at">prob=</span>posterior, <span class="at">size =</span> <span class="fl">1e4</span>, <span class="at">replace=</span><span class="cn">TRUE</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Extract samples from the posterior from <code>quap</code> approximation:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href></a>samples <span class="ot">&lt;-</span> rethinking<span class="sc">::</span><span class="fu">extract.samples</span>(m, <span class="at">n =</span> <span class="fl">1e4</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="do-stuff-with-the-model-1" class="slide level2">
 <h2>Do stuff with the model</h2>
 <p>The results are the <em>whole</em> posterior</p>
 <p>Can extract samples from the posterior to do <em>most anything</em></p>
@@ -1314,7 +1340,7 @@ p 0.6666664 0.1571338 0.4155362 0.9177966</code></pre>
 <p>What do you want to do? What do you want to learn?</p>
 </div>
 </section>
-<section id="do-stuff-with-the-model-1" class="slide level2">
+<section id="do-stuff-with-the-model-2" class="slide level2">
 <h2>Do stuff with the model</h2>
 <p>Things you might want to do</p>
 <ul>
@@ -1332,8 +1358,8 @@ p 0.6666664 0.1571338 0.4155362 0.9177966</code></pre>
 </ul></li>
 </ul>
 </section>
-<section id="how-to-avoid-confusion" class="slide level2">
-<h2>How to avoid confusion</h2>
+<section id="how-to-avoid-confusion-in-this-process" class="slide level2">
+<h2>How to avoid confusion in this process</h2>
 <p>Keep track of what you are doing and why</p>
 <p>Investigate the results of every. Single. Step.</p>
 <p>Keep your eye on the thing(s) you want out of the analysis</p>

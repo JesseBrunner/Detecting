@@ -20,6 +20,16 @@ format:
     * $p \sim \text{beta}(1, 2)$ 
     * What is possible (and more/less probable) prior to observing data?
 -  Some engine to do the calculations
+
+
+
+## Parts of the model {.smaller .incremental}
+
+-  Describe the **distribution of the data** | parameters (AKA _likelihood_)
+    * can also involve description of how parameters relate
+- Description of the **distribution of parameters _prior_ to observing the data**
+    * What is possible (and more/less probable) prior to observing data?
+-  Some engine to do the calculations
     * integration (nope) & conjugate priors (sometimes you get lucky!)
     * grid approximation
     * quadratic approximation (`quap()`)
@@ -58,7 +68,8 @@ $$
     * `posterior <- prob_data * prob_p`  $\leftarrow$ top part of Bayes
     * `posterior <- posterior / sum(posterior)` $\leftarrow$ dividing by sum to standardize
 
-## Do the steps with `quap()` or whatever
+
+## Do the steps with quadratic approximation, `quap()` 
 
 ```{r}
 #| echo: true
@@ -73,6 +84,27 @@ m <- quap(
 )
 precis(m)
 ```
+
+## Do stuff with the model
+
+The results are the _whole_ posterior
+
+Extract samples from the posterior from grid approximation:
+```{r}
+#| eval: false
+#| echo: true
+
+samples <- sample( pgrid, prob=posterior, size = 1e4, replace=TRUE)
+```
+
+Extract samples from the posterior from `quap` approximation:
+```{r}
+#| eval: false
+#| echo: true
+
+samples <- rethinking::extract.samples(m, n = 1e4)
+```
+
 
 ## Do stuff with the model
 
@@ -95,7 +127,7 @@ Things you might want to do
 * Calculate _possible data_ given samples of posterior & likelihood
   * plot, usually with your data (good to see if your model is "good enough")
 
-## How to avoid confusion
+## How to avoid confusion in this process
 
 Keep track of what you are doing and why
 
