@@ -1,0 +1,82 @@
+---
+title: "Ch4: Geocentric models"
+author: "Jesse Brunner"
+format: 
+  revealjs:
+    embed-resources: true
+---
+
+## Why do we keep using Gaussian (normal) distributions?
+
+
+## Why use normal distributions for parameters? {.smaller}
+
+  1.  They so often work
+  2.  The central limit theorem implies that paramter estimates tend towards a Gaussian 
+      * [But what is the Central Limit Theorem?](https://youtu.be/zeJD6dqJ5lo) video from 3B1B 
+  
+
+## Why use normal distributions for parameters? {.smaller}
+
+For data (observed variables): 
+
+1. They so often work
+2. Constraints
+    * They imply so few assumptions (other than finite variance)
+    * If you think a Gaussian is not right, then you _know_ of some other constraint(s)
+
+## Why use normal distributions for parameters? {.smaller}
+
+For data (observed variables): 
+
+3. Many ways to get them 
+    * Sum of independent, identically distributed values (e.g., steps) <- _random walk_
+    * Multiplication of small, independent, identically distributed values
+    * The log of many multiplicative values
+    * Other distributions converge on the normal
+        * $\text{Binomial}(n,p) \rightarrow \text{Normal}(np, \sqrt{np(1-p)})$ when $n$ is large and $p$ not too large or small
+        * $\text{Poisson}(\lambda) \rightarrow \text{Normal}(\lambda, \sqrt{\lambda})$ when $\lambda$ is large 
+        * $\text{Chi-square}(k) \rightarrow \text{Normal}(k, \sqrt{2k})$ when $k$ is large
+
+## Why use linear models? {.smaller}
+
+For describing relationship between predictor(s) and expectation ($\mu$): 
+
+* It is simple and easy to understand
+* It assumes a constant, additive relationship, which feels like fewer assumptions when we know little 
+    * but this is _also_ an assumption!
+* It is very common
+
+## Why use linear models? {.smaller}
+
+For describing relationship between predictor(s) and expectation ($\mu$): 
+
+* Use it as a starting point and then build complexity (e.g., from theory)
+* Use it as an ending point if you are OK with the assumptions of it
+
+## A few thoughts/suggestions on linear models {.smaller}
+
+* Be thoughtful (and visualize) your "linear" model on the response scale
+    * $\log(\mu_i) = a + b x_i \rightarrow \mu_i = e^{a + b x_i}$ 
+* It is often (usually?) better to _center_ your model
+    * $\mu_i = a + b (x_i-\bar{x})$ instead of $\mu_i = a + b x_i$
+    * the slope, $b$, has the same meaning, but now the intercept, $a$, is the expectation when the predictor, $x_i$, is at its mean value
+    * This will also help with estimation
+
+## A bonus suggestions (for the future) {.smaller}
+
+Traditionally you might see a model for, say, three treatment groups, A, B, C, written as:
+$$
+\mu = a + b_{TrtB}\times B + b_{TrtC} \times C,
+$$
+where $B$ and $C$ are indicator variables (0/1) for whether an observation is in that group. 
+In this version the intercept, $a$, is the expectation for treatment A, $a + b_{TrtB}$ is the expectation for treatment B, and $a+b_{TrtC}$ is the expectation for treatment C.
+
+Alternatively, we could write:
+$$
+\mu = a[Trt],
+$$
+where $Trt$ is an index (1,2, or 3) indicating the treatment level. The expectation for treatment $i$ is then the $i$th value in the vector $a$. 
+
+ * This is easier to code and think about
+ * It has nicer properties when thinking about priors (as we will see)
