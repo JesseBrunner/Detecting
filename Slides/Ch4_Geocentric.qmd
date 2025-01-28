@@ -9,25 +9,28 @@ format:
 ## Why do we keep using Gaussian (normal) distributions?
 
 
-## Why use normal distributions for parameters? {.smaller}
+## Why use normal distributions {.smaller}
+
+For **parameters** (unobserved variables):
 
   1.  They so often work
-  2.  The central limit theorem implies that paramter estimates tend towards a Gaussian 
+  2.  They imply few constraints 
+      * If you think a Gaussian is not right, then you _know_ of some other constraint(s)
+  3.  The central limit theorem implies that parameter estimates tend towards a Gaussian 
       * [But what is the Central Limit Theorem?](https://youtu.be/zeJD6dqJ5lo) video from 3B1B 
   
 
-## Why use normal distributions for parameters? {.smaller}
+## Why use normal distributions? {.smaller}
 
-For data (observed variables): 
+For **data** (observed variables): 
 
 1. They so often work
-2. Constraints
-    * They imply so few assumptions (other than finite variance)
+2. They imply few constraints (other than finite variance)
     * If you think a Gaussian is not right, then you _know_ of some other constraint(s)
 
-## Why use normal distributions for parameters? {.smaller}
+## Why use normal distributions? {.smaller}
 
-For data (observed variables): 
+For **data** (observed variables): 
 
 3. Many ways to get them 
     * Sum of independent, identically distributed values (e.g., steps) <- _random walk_
