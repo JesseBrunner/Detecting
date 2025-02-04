@@ -27,7 +27,7 @@ There is nothing special about how we process the posterior distribution as oppo
 
 ::: {.callout-warning}
 ## Warning
-These tools are _fairly_ general purpose, but there will be types of models (e.g., those that `quap()` or `ulam()` will not fit) on which they might choke. That's OK. There are no completely general purpose tools. Even if these tools will not work (probably because `link()` will not be able to extract the linear or scientific model) the same logic our code uses should work. These tools are shortcuts, but not substitutes for thinking.
+These tools are _fairly_ general purpose, but there will be some models on which they might choke. That's OK. There are no completely general purpose tools. Even if these tools will not work (probably because `link()` will not be able to extract the linear or scientific model) the same logic our code uses should work. These tools are shortcuts, but not substitutes for thinking.
 :::
 
 # A toy model
@@ -126,7 +126,7 @@ To reiterate, `link()` :
 
 1.  takes a data frame (or list) of predictor variables (it must have values for every predictor, here `hc` and `sex`) or the original data (try `str(link(m1, n=5))`),
 2.  takes `n` draws from the posterior and then,
-3.  returns a matrix with `n` rows each providing a set of predictions for all of the predictor values provided (akin to `nrow(newdat)`).
+3.  returns a matrix with `n` rows each providing a set of predictions for all of the predictor values provided (that is, with as many _columns_ as there are _rows_ in `newdat` or whatever data frame or list of predictor variables we gave it).
 
 `link()` is pretty robust and is easier than making our own code to generate predictions, so let's use it!
 
@@ -145,10 +145,12 @@ apply(X = preds,
       FUN = quantile, prob = 0.9) # less accurate  since we only have 5 draws
 ```
 
+Be sure you understand why we get, in this case, six values out of each of these `apply` function calls.  
+
 Let's try to generalize this into a function
 
 # A function for predicted relationsips
-Let's see if we can make a function that does automagically what we just did automanually. It's best to start simple, so let's start with a function that returns a vector of means expected values given predictors in a data frame.
+Let's see if we can make a function that does automagically what we just did manumagically. It's best to start simple, so let's start with a function that returns a vector of means expected values given predictors in a data frame.
 
 We can start by writing the skeleton of what we want it to take
 ```{r}
@@ -158,7 +160,7 @@ genPreds <- function(df, model, n=1e4){
   # return mean predictions
 }
 ```
-Notice that I provided a default value for `n`, though we can override that when we use the function. Next step, let's have the function use `sim()` to generate predictions
+Notice that I provided a default value for `n`, which we can override  when we use the function. Next step, let's have the function use `link()` to generate predictions
 ```{r}
 genPreds <- function(df, model, n=1e4){
   # use link to generate preds
@@ -211,7 +213,7 @@ Test it again:
 ```{r}
 genPreds(df=newdat, model=m1, n=5)
 ```
-That's more useful, right?
+That's more useful, right? (NB: We still see `pred1` in the data frame because we added it there before. That is _not_ coming from this function.)
 
 But wait! We might also want some CI^[Credible or consistency interval] calculated and returned, as well.
 ```{r}
