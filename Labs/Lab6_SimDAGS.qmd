@@ -108,7 +108,7 @@ b_TV <- 0.5 # higher temps increase virus replication
 b_TE <- -0.75 # higher temps lead to less energy available
 b_FE <- 0.75 # Food has a positive effect on energy available
 b_EC <- 0.75 # A pretty good predictor of body condition
-b_EV <- -1 # strong, negatve effect of energetic reserves
+b_EV <- -0.9 # strong, negative effect of energetic reserves
 ```
 We can certainly change these---indeed, it might be interesting to see how the strength of the relationships might overcome any particular problems we have with using wrong models. For now, though, let's just run with it. 
 
@@ -150,6 +150,18 @@ mF <- quap(
     sigma ~ dexp(1)
   ), data = expt
 )
+# Food and condition
+mFC <- quap(
+  alist(
+    Virus ~ dnorm(mu, sigma), 
+    mu <- a + bf*Food + bc*Condition,
+    # priors
+    a ~ dnorm(3, 3), 
+    bf ~ dnorm(0, 1), 
+    bc ~ dnorm(0, 1), 
+    sigma ~ dexp(1)
+  ), data = expt
+)
 # correct model for total effect of temperature
 mT <- quap(
   alist(
@@ -158,6 +170,18 @@ mT <- quap(
     # priors
     a ~ dnorm(3, 3), 
     bt ~ dnorm(0, 1), 
+    sigma ~ dexp(1)
+  ), data = expt
+)
+# temperature and condition
+mTC <- quap(
+  alist(
+    Virus ~ dnorm(mu, sigma), 
+    mu <- a + bt*Temp + bc*Condition,
+    # priors
+    a ~ dnorm(3, 3), 
+    bt ~ dnorm(0, 1), 
+    bc ~ dnorm(0, 1), 
     sigma ~ dexp(1)
   ), data = expt
 )
@@ -191,20 +215,26 @@ mFTC <- quap(
 We should, of course, do more than simply look at coefficients in a real model, but for now this is informative.
 ```{r}
 precis(mF)
+precis(mFC)
 precis(mT)
+precis(mTC)
+precis(mFT)
+precis(mFTC)
 ```
 A graph can be helpful. This is command is useful:
 ```{r}
-plot(coeftab(mF, mT, mFT, mFTC), pars = c("bf", "bt"))
+plot(coeftab(mF, mFC, mT, mTC, mFT, mFTC), pars = c("bf", "bt"))
 ```
 
 (If that doesn't work, try the following...)
 ```{r}
 #| eval: false
-coeftab_plot(coeftab(mF, mT, mFT, mFTC), pars = c("bf", "bt"))
+coeftab_plot(coeftab(mF, mFC, mT, mTC, mFT, mFTC), pars = c("bf", "bt"))
 ```
 
-It sure seems like when we include body condition we erode the estimates of food and temperature on viral titers. (If we include both food and temperature we get the same average effect sizes, but estimated with a bit more precision! Who knew?). This is probably because much of the effect of food and temperature works through energy reserves (En), and we're conditioning on its descendant, body condition (Condition). So we're already accounting for much of this path of influence, leaving much less for the food and temperature variables to explain. Which model we run would strongly influence our results! But notice that there are no particular signs that this is not the "right" model for our purposes! It fit just fine and it predicts the data just fine. 
+It sure seems like when we include body condition we erode the estimates of food and temperature on viral titers. (If we include both food and temperature we get the same average effect sizes, but estimated with a bit more precision! Who knew?). This is probably because much of the effect of food and temperature works through energy reserves (En), and we're conditioning on its descendant, body condition (Condition). So we're already accounting for much of this path of influence, leaving much less for the food and temperature variables to explain. There is also the issue that the _sign_ of the effect of food on virus is _reversed_ if we include body condition in the model `mFC`. Crazy!
+
+Thus, depending on the model we run we can get strikingly different results! But notice that there are no particular signs that this is not the "correct" model for our purposes! It fit just fine and it predicts the data just fine. 
 
 In fact, let's see what the models tell us viral titers should be. We created functions to facilitate this last week. Let's load them back in.
 ```{r}
