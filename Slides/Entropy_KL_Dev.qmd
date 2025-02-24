@@ -8,6 +8,7 @@ format:
 execute: 
   echo: true
 ---
+
 ```{r}
 #| include: false
 
@@ -118,6 +119,9 @@ text(x=x, y=y,
 :::: {.columns}
 
 ::: {.column width="50%"}
+
+`m0`
+
 ```{r}
 # fit model with just a mean
 m0 <- quap(
@@ -133,6 +137,9 @@ precis(m0)
 :::
 
 ::: {.column width="50%"}
+
+`m1`
+
 ```{r}
 # fit model with a mean and slope
 m1 <- quap(
@@ -146,6 +153,7 @@ m1 <- quap(
 )
 precis(m1)
 ```
+
 :::
 
 ::::
@@ -172,6 +180,7 @@ plot(x, y,
 abline(a=a, b=b, col="gray")
 points(xs$x, y=preds_m0, col="red", type="l")
 points(xs$x, y=preds_m1, col="blue", type="l")
+legend(x=-1, y=20, legend = c("m0", "m1", "Truth"), text.col = c("red", "blue", "gray"), col = c("red", "blue", "gray"), lty=1)
 ```
 
 ## Cross entropy from using `m0` to approximate Truth {.smaller}
@@ -307,7 +316,7 @@ sum(ps*(log(ps)-log(rs)))
 
 ::::
 
-## Can compare KL distances of our models {.smaller}
+## Compare KL distances of models  {.smaller}
 
 $$
 \begin{align}
@@ -340,33 +349,64 @@ D_{KL}(p,q) - D_{KL}(p,r) & = \sum_{i=1}^n p_i\left[ - \log(q_i) \right] - \sum_
 $$
 So we use log probabilities to describe fit and compare them between models <phew!>
 
-## But not quite: lppd {.smaller}
+## But not quite: 1) lppd {.smaller}
 
-Have been pretending a single value for our expectations (the MAP)
-In actuality,  have a full distribution (posterior).
---> log pointwise predictive density
+Have been pretending we have a single value for our expectations (the MAP)
+
+In actuality, have a full distribution (posterior)
+
+Enter the log point-wise predictive density (lppd)
 
 $$
 \text{lppd}(y,\Theta)=\sum_i^n \log \frac{1}{S}\sum_s^Sp(y_i|\Theta),
 $$
 
+:::: {.columns}
+
+::: {.column width="50%"}
 ```{r}
 # m0
 sum(log(qs))
 sum(lppd(m0))
+```
+:::
+
+::: {.column width="50%"}
+```{r}
 # m1
 sum(log(rs))
 sum(lppd(m1))
 ```
+:::
 
-## But not quite: We use deviance {.smaller}
+::::
 
-```{r}
--2*sum(lppd(m0))
--2*sum(lppd(m1))
-```
+
+## But not quite: 2) deviance {.smaller}
+
+And we actually use _deviance_ = $-2\times \text{lppd}(y,\Theta)$
+
 (smaller is better)
 
-These are our metrics of fit! 
+:::: {.columns}
+
+::: {.column width="50%"}
+```{r}
+# m0
+-2*sum(lppd(m0))
+
+```
+:::
+
+::: {.column width="50%"}
+```{r}
+# m1
+-2*sum(lppd(m1))
+```
+:::
+::::
+
+
+_These_ are our metrics of fit! 
 See that `m1` is _way_ better at fitting our data than `m0`
 
