@@ -126,9 +126,10 @@ mc <- quap(
 ```
 
 ```{r}
-precis(ma)
-precis(mb)
-precis(mc)
+# precis(ma)
+# precis(mb)
+# precis(mc)
+coeftab_plot(coeftab(ma, mb, mc))
 ```
 
 # Measuring & comparing predictive accuracy
@@ -239,7 +240,7 @@ So we can see what our deviance scores were telling us: with increasingly comple
 What we have _not_ yet done, however, is compare their ability to predict _new_ data. 
 
 # Cross validation
-Of course, we do not actually _have_ new data to try and predict^[Yes, since we made up these data from a "True" generating process we could make up more data to predict. However, with real data we won't have some new data set to predict unless we've specifically kept it in reserve. Thus, we'll use the more general cross-validation approach.]. Instead, we can leave out some data, fit the model, see how well it predicts the left out data, and repeat. This is called cross validation. We'll do the so-called "leave one out" or "loo" cross-validation, but this approach is general (e.g., we can divide the data up into $k$ groups and then leave one of these groups out in what is called "$k$-fold" cross-validation). It's easier to follow if we just do it.
+Of course, we do not actually _have_ new data to try and predict^[Yes, since we made up these data from a "True" generating process we could make up more data to predict. In fact, bonus points for giving it a try! However, with real data we won't have some new data set to predict unless we've specifically kept it in reserve. Thus, we'll use the more general cross-validation approach.]. Instead, we can leave out some data, fit the model, see how well it predicts the left out data, and repeat. This is called cross validation. We'll do the so-called "leave one out" or "loo" cross-validation, but this approach is general (e.g., we can divide the data up into $k$ groups and then leave one of these groups out in what is called "$k$-fold" cross-validation). It's easier to follow if we just do it.
 
 ```{r}
 deviances <- matrix(data=NA, 
