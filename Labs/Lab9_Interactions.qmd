@@ -1,0 +1,40 @@
+---
+title: "Lab 9: Interactions in linear models"
+author: "Jesse Brunner"
+date: "`r Sys.Date()`"
+format: 
+  html:
+    toc: true
+    embed-resources: true
+    code-fold: false
+execute:
+  include: true
+---
+
+You have probably seen interactions before. What this means is that effect of one predictor _depends on_ the value or level of another predictor variable (and vice versa). In fact, we've already built one of these models (see the models from Lab 5, where we allowed both the intercept and slope to vary or depend on sex). 
+
+Since we have other things to do today (installing Stan!), we'll keep our goals simple. We will build two models with the tulip data. First load it up.
+
+```{r}
+#| message: false
+library(rethinking)
+data(tulips)
+head(tulips)
+```
+And then standarize it
+```{r}
+# standardize the data
+tulips$blooms_std <- tulips$blooms/max(tulips$blooms)
+tulips$water_cent <- tulips$water-mean(tulips$water)
+tulips$shade_cent <- tulips$shade-mean(tulips$shade)
+```
+
+# Challenge 1
+Reconstruct the tulip analysis from chapter 5 (i.e., make `m8.5`), only use priors that constrain the effect of water to be positive and the effect of shade to be negative. Be sure to:
+* Use prior predictive simulation to find appropriate priors
+* Plot the posterior predictions and data to see how well this model describes the data
+* Consider also plotting the original posterior predictions
+
+
+# Challenge 2
+Replicate the tulip model (either `m8.5` or your new and improved (?) version) but now include `bed` as a predictor, but just a "main effect", not an interaction. What does this do to the posterior estimates?  Then use WAIC to compare the expected out of sample predictive ability of the models with and without `bed`. Is one clearly better at prediction?
