@@ -109,12 +109,12 @@ segments(x0=1.9, y0=0, y1=posterior(1.9), col="grey")
 points(x=1.9, y=posterior(1.9), col="grey")
 xs <- seq(-2.5,2.5, length.out=50)
 points(x=xs+1.9, 
-       y=proposal(xs), 
+       y=2*proposal(xs), 
        type="l", col="blue")
 ```
 
 Choose a _proposal_ for a new value on the chain.
-  - Our proposal distribution is centered on our last guess. 
+  - Our proposal distribution (blue) is centered on our last guess. 
   - Can be any _symmetric_ shape.
 
 ## Step 2 {.smaller}
@@ -128,7 +128,7 @@ segments(x0=1.9, y0=0, y1=posterior(1.9), col="grey")
 points(x=1.9, y=posterior(1.9), col="grey")
 xs <- seq(-2.5,2.5, length.out=50)
 points(x=xs+1.9, 
-       y=proposal(xs), 
+       y=2*proposal(xs), 
        type="l", col="blue")
 arrows(x0=2.5, y0=0, y1=0.01, length=1/10, col="red", code = 1)
 ```
@@ -170,7 +170,7 @@ points(x=2.5, y=posterior(2.5), col="red")
 
 Calculate the ratio of those heights: 
 $$
-r = \frac{\text{Pr}(x|\theta_p)\text{Pr}(\theta_p)}{\text{Pr}(x|\theta)\text{Pr}(\theta)} = \frac{`r round(posterior(2.5),3)`}{`r round(posterior(1.9),3)`} = `r round(posterior(2.5)/posterior(1.9),3)`
+r = \frac{\text{Pr}(x|\theta_p)\text{Pr}(\theta_p)}{\text{Pr}(x|\theta_{t-1})\text{Pr}(\theta)} = \frac{`r round(posterior(2.5),3)`}{`r round(posterior(1.9),3)`} = `r round(posterior(2.5)/posterior(1.9),3)`
 $$
 
 ## Why ratios are clever {.smaller}
@@ -186,6 +186,7 @@ However, they cancel out! We just need the numerators!
 $$
 r = \frac{\text{Pr}(\theta_p | x)}{\text{Pr}(\theta_{t-1} | x)} = \frac{\text{Pr}(x|\theta_p)\text{Pr}(\theta_p)}{\text{Pr}(x|\theta)\text{Pr}(\theta)} 
 $$
+
 ## Step 3 {.smaller}
 
 ```{r}
@@ -203,7 +204,8 @@ points(x=2.5, y=posterior(2.5), col="red")
 
 Choose a random uniform variable, $U \sim \text{Uniform}(0,1)$
 
-If $r > U$, accept the proposal & add it to the chain
+If $r > U$, accept the proposal & add it to the chain. 
+If  $r < U$, reject and try a new proposal.
 
 ## Repeat steps 2 & 3 {.smaller}
 
@@ -213,10 +215,10 @@ curve(posterior,
       xlab=expression(theta), 
       ylab=expression(Pr(x~"|"~theta)~Pr(theta)))
 segments(x0=1.9, y0=0, y1=posterior(1.9), col="grey")
-segments(x0=2.5, y0=0, y1=posterior(2.5), col="grey")
-points(x=2.5, y=posterior(2.5), col="grey")
+segments(x0=2.5, y0=0, y1=posterior(2.5), col="gray20")
+points(x=2.5, y=posterior(2.5), col="gray20")
 points(x=xs+2.5, 
-       y=proposal(xs), 
+       y=2*proposal(xs), 
        type="l", col="blue")
 
 ```
@@ -229,10 +231,10 @@ curve(posterior,
       xlab=expression(theta), 
       ylab=expression(Pr(x~"|"~theta)~Pr(theta)))
 segments(x0=1.9, y0=0, y1=posterior(1.9), col="grey")
-segments(x0=2.5, y0=0, y1=posterior(2.5), col="grey")
-points(x=2.5, y=posterior(2.5), col="grey")
+segments(x0=2.5, y0=0, y1=posterior(2.5), col="gray20")
+points(x=2.5, y=posterior(2.5), col="gray20")
 points(x=xs+2.5, 
-       y=proposal(xs), 
+       y=2*proposal(xs), 
        type="l", col="blue")
 arrows(x0=4.2, y0=0, y1=0.01, length=1/10, col="red", code = 1)
 ```
@@ -246,8 +248,8 @@ curve(posterior,
       xlab=expression(theta), 
       ylab=expression(Pr(x~"|"~theta)~Pr(theta)))
 segments(x0=1.9, y0=0, y1=posterior(1.9), col="grey")
-segments(x0=2.5, y0=0, y1=posterior(2.5), col="grey")
-points(x=2.5, y=posterior(2.5), col="grey")
+segments(x0=2.5, y0=0, y1=posterior(2.5), col="gray20")
+points(x=2.5, y=posterior(2.5), col="gray20")
 # points(x=xs+2.5, 
 #        y=proposal(xs), 
 #        type="l", col="blue")
@@ -259,7 +261,7 @@ $$
 r = \frac{`r round(posterior(4.2),3)`}{`r round(posterior(2.5),3)`} = `r round(posterior(4.2)/posterior(2.5),3)` ; U = 0.89
 $$ 
 
-Since $r < U$, reject proposal & keep the current position.
+Since $r < U$, reject proposal & try a new proposal.
 
 ## One more time {.smaller}
 
@@ -269,10 +271,10 @@ curve(posterior,
       xlab=expression(theta), 
       ylab=expression(Pr(x~"|"~theta)~Pr(theta)))
 segments(x0=1.9, y0=0, y1=posterior(1.9), col="grey")
-segments(x0=2.5, y0=0, y1=posterior(2.5), col="grey")
-points(x=2.5, y=posterior(2.5), col="grey")
+segments(x0=2.5, y0=0, y1=posterior(2.5), col="gray20")
+points(x=2.5, y=posterior(2.5), col="gray20")
 points(x=xs+2.5, 
-       y=proposal(xs), 
+       y=2*proposal(xs), 
        type="l", col="blue")
 arrows(x0=3.1, y0=0, y1=0.01, length=1/10, col="red", code = 1)
 ```
@@ -285,8 +287,8 @@ curve(posterior,
       xlab=expression(theta), 
       ylab=expression(Pr(x~"|"~theta)~Pr(theta)))
 segments(x0=1.9, y0=0, y1=posterior(1.9), col="grey")
-segments(x0=2.5, y0=0, y1=posterior(2.5), col="grey")
-points(x=2.5, y=posterior(2.5), col="grey")
+segments(x0=2.5, y0=0, y1=posterior(2.5), col="gray20")
+points(x=2.5, y=posterior(2.5), col="gray20")
 # points(x=xs+2.5, 
 #        y=proposal(xs), 
 #        type="l", col="blue")
@@ -309,8 +311,9 @@ theta = c(1.9, 2.5, 2.5, 3.1)
 plot(theta, 
      type="b", 
      xlab="step or iteration", 
-     ylab=expression(theta), 
+     ylab=expression(theta), xaxt="n",
      ylim=c(1, 4))
+axis(1, at = seq(1, 4, by = 1))
 ```
 
 ## Chain after a while {.smaller}
@@ -327,7 +330,7 @@ plot(theta,
 ## Turn it on it's side {.smaller}
 
 ```{r}
-hist(theta, breaks = 30, xlab=expression(theta))
+hist(theta, breaks = 50, xlab=expression(theta))
 ```
 
 It works!
@@ -344,16 +347,15 @@ curve(posterior,
       ylab=expression(Pr(x~"|"~theta)~Pr(theta)))
 segments(x0=1.9, y0=0, y1=posterior(1.9), col="grey")
 segments(x0=2.5, y0=0, y1=posterior(2.5), col="grey")
-points(x=2.5, y=posterior(2.5), col="grey")
+#points(x=2.5, y=posterior(2.5), col="grey")
 segments(x0=3.1, y0=0, y1=posterior(3.1), col="grey")
-points(x=3.1, y=posterior(3.1), col="grey")
-segments(x0=1.1, y0=0, y1=posterior(1.1), col="grey")
-points(x=1.1, y=posterior(1.1), col="grey")
+#points(x=3.1, y=posterior(3.1), col="grey")
+segments(x0=1.1, y0=0, y1=posterior(1.1), col="grey20")
+points(x=1.1, y=posterior(1.1), col="grey20")
 points(x=xs+1.1,
-       y=proposal(xs),
+       y=2*proposal(xs),
        type="l", col="blue")
 segments(x0=3.1, y0=0, y1=posterior(3.1), col="grey")
-points(x=3.1, y=posterior(3.1), col="grey")
 arrows(x0=-0.5, y0=0, y1=0.01, length=1/10, col="red", code = 1)
 
 ```
@@ -384,7 +386,7 @@ segments(x0=3.1, y0=0, y1=posterior(3.1), col="grey")
 segments(x0=1.1, y0=0, y1=posterior(1.1), col="grey")
 points(x=1.1, y=posterior(1.1), col="grey")
 points(x=xs,
-       y=proposal2(xs, 1.1),
+       y=2*proposal2(xs, 1.1),
        type="l", col="blue")
 arrows(x0=0.5, y0=0, y1=0.01, length=1/10, col="red", code = 1)
 
@@ -422,14 +424,14 @@ cloud(z ~ x + y)
 Imagine a proposed jump from one of these points could easily be far from posterior density
 
 -  Gets worse with higher N
--  Many to most proposals are rejected = inefficient
+-  Many to most proposals are rejected $\longrightarrow$ inefficient
 
 ## Solution: HMC {.smaller}
 
 **Hamiltonian Monte Carlo**
 
 - pretends the (negative-log) posterior is a surface 
-- simulates a ball rolling along that
+- simulates a ball rolling along that (without friction)
 - produces proposals informed by topography
 - otherwise like Metropolis-Hastings
 
@@ -517,15 +519,27 @@ points(c(0.18,0.6,0.85,1.2,1.6,2.2,3.2,3.6,4),
        -log(posterior(c(0.18,0.6,0.85,1.2,1.6,2.2,3.2,3.6,4))) +0.1, pch=16, col = rgb(1,0,0, 2:10/10))
 ```
 
-## HMC {.smaller}
-```{r}
-curve(-log(posterior(x)), 
-      from=0, to=10, n=1001,
-      xlab=expression(theta), 
-      ylab=expression(-log(Pr(x~"|"~theta)~Pr(theta))))
-points(0.18, -log(posterior(0.18)) +0.1, pch=16, col = rgb(1,0,0, 1))
-points(0.18, -log(posterior(0.18)) +0.1, pch=16, col = rgb(1,0,0, 1))
-```
+Track it's movement for a certain amount of "time" using Hamiltonian equations 
+
+$$
+\begin{align}
+\text{Total Energy} &= \text{Potential} + \text{Kinetic}\\
+E &= U(\theta) + K(\text{momentum})
+\end{align}
+$$
+
+After a bit of time, point at end is the new proposal
+
+- Proposals tend to be in areas with higher probability density
+<!-- ## HMC {.smaller} -->
+<!-- ```{r} -->
+<!-- curve(-log(posterior(x)),  -->
+<!--       from=0, to=10, n=1001, -->
+<!--       xlab=expression(theta),  -->
+<!--       ylab=expression(-log(Pr(x~"|"~theta)~Pr(theta)))) -->
+<!-- points(0.18, -log(posterior(0.18)) +0.1, pch=16, col = rgb(1,0,0, 1)) -->
+<!-- points(0.18, -log(posterior(0.18)) +0.1, pch=16, col = rgb(1,0,0, 1)) -->
+<!-- ``` -->
 
 
 ## HMC details {.smaller}
@@ -552,14 +566,26 @@ No analytic solution to Hamiltonian for most problems, so:
 - Stan will tune step size and number of leapfrog steps
     - too many steps and we end up at the bottom, every time
     - too coarse and we don't follow the posterior
-- Energy at start and end _should_ be the same if we followed posterior surface
+- Total energy ($= \text{Potential} + \text{Kinetic}$) at start _should_ equal the energy at the end if we followed posterior surface (No friction!)
     -  gives a warning if these **diverge** 
 
 **Proposal acceptance** actually reflects the difference in energy (i.e., how well we followed the path of the ball)
-
-So unless there were divergences, we should accept
+  
+  - unless there were divergences, we should accept
+  - divergences suggest a problem we need to fix
 
 ## HMC details {.smaller}
 
 
 Overall, each proposal requires many more calculations (many steps, calculating kinetic energy & momentum at each), but proposals are much better / rarely rejected, so much more efficient overall
+
+  - Most of the time with Stan is compiling code in C++
+  - Running is _fast_!
+
+Assumes a continuous likelihood surface, so _no discrete parameters_! 
+
+  - WinBugs/JAGS allow for $\theta \in \{0,1\}$ (can be useful for occupancy and similar models)
+  - In HMC we "integrate out" these discrete parameters... faster & simpler
+  
+Other problems involve hard-to-simulate likelihood surfaces (more later)
+
