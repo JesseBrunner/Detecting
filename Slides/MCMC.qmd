@@ -19,13 +19,17 @@ execute:
 
 Many models are too complex for quadratic approximation or other short cuts.
 
-We need a general method of numeric integration to explore the posterior effectivly.
+  - Many dimensions
+  - Interactions 
+  - Multi-level models (we'll get there)
+
+We need a general method of numeric integration to explore the posterior effectively.
 
 MCMC $\lim_{t\to\infty}$ posterior
 
 ## What's in a name? Markov chain Monte Carlo
 
-Monte Carlo: "repeated random sampling to obtain numerical results" -wikipedia
+Monte Carlo: "repeated random sampling to obtain numerical results" -Wikipedia
 
 Markov chain: stochastic model in which state at time $t$ depends only on previous state at $t-1$
 
@@ -68,10 +72,24 @@ Imagine this one-dimensional posterior:
      - actually, is _proportional_ to the posterior
      - we don't know the probability of the data, $\text{Pr}(x)$.
 
+## Imagine a posterior {.smaller}
+
+```{r}
+curve(posterior, col = "gray90",
+      from=0, to=10, 
+      xlab=expression(theta), 
+      ylab=expression(Pr(x~"|"~theta)~Pr(theta)))
+```
+
+_Now_ imagine that we cannot see it! 
+
+We can only calculate the heights given particular guesses of $\theta$
+
+
 ## Step 1 {.smaller}
 
 ```{r}
-curve(posterior, 
+curve(posterior, col = "gray90",
       from=0, to=10, 
       xlab=expression(theta), 
       ylab=expression(Pr(x~"|"~theta)~Pr(theta)))
@@ -84,7 +102,7 @@ This is the first step of our (Markov) chain
 ## Step 1 {.smaller}
 
 ```{r}
-curve(posterior, 
+curve(posterior, col = "gray90",
       from=0, to=10, 
       xlab=expression(theta), 
       ylab=expression(Pr(x~"|"~theta)~Pr(theta)))
@@ -101,12 +119,12 @@ height =  likelihood of data given $\theta$ $\times$ prior of $\theta$
 ## Step 2 {.smaller}
 
 ```{r}
-curve(posterior, 
+curve(posterior, col = "gray90",
       from=0, to=10, 
       xlab=expression(theta), 
       ylab=expression(Pr(x~"|"~theta)~Pr(theta)))
-segments(x0=1.9, y0=0, y1=posterior(1.9), col="grey")
-points(x=1.9, y=posterior(1.9), col="grey")
+segments(x0=1.9, y0=0, y1=posterior(1.9), col="grey20")
+points(x=1.9, y=posterior(1.9), col="grey20")
 xs <- seq(-2.5,2.5, length.out=50)
 points(x=xs+1.9, 
        y=2*proposal(xs), 
@@ -114,18 +132,18 @@ points(x=xs+1.9,
 ```
 
 Choose a _proposal_ for a new value on the chain.
-  - Our proposal distribution (blue) is centered on our last guess. 
+  - Our proposal distribution (blue) is centered on our last guess (gray). 
   - Can be any _symmetric_ shape.
 
 ## Step 2 {.smaller}
 
 ```{r}
-curve(posterior, 
+curve(posterior, col = "gray90",
       from=0, to=10, 
       xlab=expression(theta), 
       ylab=expression(Pr(x~"|"~theta)~Pr(theta)))
-segments(x0=1.9, y0=0, y1=posterior(1.9), col="grey")
-points(x=1.9, y=posterior(1.9), col="grey")
+segments(x0=1.9, y0=0, y1=posterior(1.9), col="grey20")
+points(x=1.9, y=posterior(1.9), col="grey20")
 xs <- seq(-2.5,2.5, length.out=50)
 points(x=xs+1.9, 
        y=2*proposal(xs), 
@@ -138,79 +156,81 @@ arrows(x0=2.5, y0=0, y1=0.01, length=1/10, col="red", code = 1)
 ## Step 2 {.smaller}
 
 ```{r}
-curve(posterior, 
+curve(posterior, , col = "gray90",
       from=0, to=10, 
       xlab=expression(theta), 
       ylab=expression(Pr(x~"|"~theta)~Pr(theta)))
-segments(x0=1.9, y0=0, y1=posterior(1.9), col="grey")
-points(x=1.9, y=posterior(1.9), col="grey")
+segments(x0=1.9, y0=0, y1=posterior(1.9), col="grey20")
+points(x=1.9, y=posterior(1.9), col="grey20")
 xs <- seq(-2.5,2.5, length.out=50)
 
 segments(x0=2.5, y0=0, y1=posterior(2.5), col="red")
 points(x=2.5, y=posterior(2.5), col="red")
 ```
 
-Find height (posterior-ish value) for our _proposal_
+Find the height (posterior-ish value) for our _proposal_
 
 
 ## Step 3 {.smaller}
 
 ```{r}
-curve(posterior, 
+curve(posterior, , col = "gray90",
       from=0, to=10, 
       xlab=expression(theta), 
       ylab=expression(Pr(x~"|"~theta)~Pr(theta)))
-segments(x0=1.9, y0=0, y1=posterior(1.9), col="grey")
-points(x=1.9, y=posterior(1.9), col="grey")
+segments(x0=1.9, y0=0, y1=posterior(1.9), col="grey20")
+points(x=1.9, y=posterior(1.9), col="grey20")
 xs <- seq(-2.5,2.5, length.out=50)
 
 segments(x0=2.5, y0=0, y1=posterior(2.5), col="red")
 points(x=2.5, y=posterior(2.5), col="red")
 ```
 
-Calculate the ratio of those heights: 
+Calculate the _ratio_ of those heights: 
 $$
-r = \frac{\text{Pr}(x|\theta_p)\text{Pr}(\theta_p)}{\text{Pr}(x|\theta_{t-1})\text{Pr}(\theta)} = \frac{`r round(posterior(2.5),3)`}{`r round(posterior(1.9),3)`} = `r round(posterior(2.5)/posterior(1.9),3)`
+r = \frac{\text{Pr}(x|\theta_p)\text{Pr}(\theta_p)}{\text{Pr}(x|\theta_{t})\text{Pr}(\theta)} = \frac{`r round(posterior(2.5),3)`}{`r round(posterior(1.9),3)`} = `r round(posterior(2.5)/posterior(1.9),3)`
 $$
+
+Choose a random uniform variable, $U \sim \text{Uniform}(0,1)$
+
+If $r > U$, accept the proposal & add it to the chain. 
+If  $r < U$, reject it, add current value to chain, & try a new proposal.
+
+## Step 3 {.smaller}
+
+```{r}
+curve(posterior, col = "gray90",
+      from=0, to=10, 
+      xlab=expression(theta), 
+      ylab=expression(Pr(x~"|"~theta)~Pr(theta)))
+segments(x0=1.9, y0=0, y1=posterior(1.9), col="grey20")
+points(x=1.9, y=posterior(1.9), col="grey20")
+xs <- seq(-2.5,2.5, length.out=50)
+
+segments(x0=2.5, y0=0, y1=posterior(2.5), col="red")
+points(x=2.5, y=posterior(2.5), col="red")
+```
+
+
 
 ## Why ratios are clever {.smaller}
 
 We _want_ to calculate the ratio of posterior probabilities: 
 
 $$
-r = \frac{\text{Pr}(\theta_p | x)}{\text{Pr}(\theta_{t-1} | x)} = \frac{\frac{\text{Pr}(x|\theta_p)\text{Pr}(\theta_p)}{\text{Pr}(x)}}{\frac{\text{Pr}(x|\theta_{t-1})\text{Pr}(\theta_{t-1})}{\text{Pr}(x)}} 
+r = \frac{\text{Pr}(\theta_p | x)}{\text{Pr}(\theta_{t} | x)} = \frac{\frac{\text{Pr}(x|\theta_p)\text{Pr}(\theta_p)}{\text{Pr}(x)}}{\frac{\text{Pr}(x|\theta_{t})\text{Pr}(\theta_{t})}{\text{Pr}(x)}} 
 $$
 but we do not know (and cannot calculate) $\text{Pr}(x)$. 
 
 However, they cancel out! We just need the numerators!
 $$
-r = \frac{\text{Pr}(\theta_p | x)}{\text{Pr}(\theta_{t-1} | x)} = \frac{\text{Pr}(x|\theta_p)\text{Pr}(\theta_p)}{\text{Pr}(x|\theta)\text{Pr}(\theta)} 
+r = \frac{\text{Pr}(\theta_p | x)}{\text{Pr}(\theta_{t} | x)} = \frac{\text{Pr}(x|\theta_p)\text{Pr}(\theta_p)}{\text{Pr}(x|\theta_t)\text{Pr}(\theta_t)} 
 $$
-
-## Step 3 {.smaller}
-
-```{r}
-curve(posterior, 
-      from=0, to=10, 
-      xlab=expression(theta), 
-      ylab=expression(Pr(x~"|"~theta)~Pr(theta)))
-segments(x0=1.9, y0=0, y1=posterior(1.9), col="grey")
-points(x=1.9, y=posterior(1.9), col="grey")
-xs <- seq(-2.5,2.5, length.out=50)
-
-segments(x0=2.5, y0=0, y1=posterior(2.5), col="red")
-points(x=2.5, y=posterior(2.5), col="red")
-```
-
-Choose a random uniform variable, $U \sim \text{Uniform}(0,1)$
-
-If $r > U$, accept the proposal & add it to the chain. 
-If  $r < U$, reject and try a new proposal.
 
 ## Repeat steps 2 & 3 {.smaller}
 
 ```{r}
-curve(posterior, 
+curve(posterior, col = "gray90",
       from=0, to=10, 
       xlab=expression(theta), 
       ylab=expression(Pr(x~"|"~theta)~Pr(theta)))
@@ -226,7 +246,7 @@ points(x=xs+2.5,
 ## Repeat steps 2 & 3 {.smaller}
 
 ```{r}
-curve(posterior, 
+curve(posterior, col = "gray90",
       from=0, to=10, 
       xlab=expression(theta), 
       ylab=expression(Pr(x~"|"~theta)~Pr(theta)))
@@ -243,7 +263,7 @@ arrows(x0=4.2, y0=0, y1=0.01, length=1/10, col="red", code = 1)
 ## Repeat steps 2 & 3 {.smaller}
 
 ```{r}
-curve(posterior, 
+curve(posterior, col = "gray90",
       from=0, to=10, 
       xlab=expression(theta), 
       ylab=expression(Pr(x~"|"~theta)~Pr(theta)))
@@ -261,12 +281,12 @@ $$
 r = \frac{`r round(posterior(4.2),3)`}{`r round(posterior(2.5),3)`} = `r round(posterior(4.2)/posterior(2.5),3)` ; U = 0.89
 $$ 
 
-Since $r < U$, reject proposal & try a new proposal.
+Since $r < U$, reject proposal, add current value to chain, & try a new proposal.
 
 ## One more time {.smaller}
 
 ```{r}
-curve(posterior, 
+curve(posterior, col = "gray90",
       from=0, to=10, 
       xlab=expression(theta), 
       ylab=expression(Pr(x~"|"~theta)~Pr(theta)))
@@ -282,7 +302,7 @@ arrows(x0=3.1, y0=0, y1=0.01, length=1/10, col="red", code = 1)
 ## One more time {.smaller}
 
 ```{r}
-curve(posterior, 
+curve(posterior, col = "gray90",
       from=0, to=10, 
       xlab=expression(theta), 
       ylab=expression(Pr(x~"|"~theta)~Pr(theta)))
@@ -301,13 +321,13 @@ r = \frac{`r round(posterior(3.1),3)`}{`r round(posterior(2.5),3)`} = `r round(p
 $$
 $U=0.212$
 
-Accept proposal & add to chain 
+Since $r > U$, accept proposal & add to chain 
 
 ## Chain so far {.smaller}
 
 ```{r}
 
-theta = c(1.9, 2.5, 2.5, 3.1)
+theta = c(1.9, 2.5,  2.5, 3.1)
 plot(theta, 
      type="b", 
      xlab="step or iteration", 
@@ -330,7 +350,8 @@ plot(theta,
 ## Turn it on it's side {.smaller}
 
 ```{r}
-hist(theta, breaks = 50, xlab=expression(theta))
+hist(theta, breaks = 50, xlab=expression(theta), freq = F)
+curve(25*dlnorm(x, meanlog=3, sdlog=1.5)*dnorm(x,mean=3, sd=2), add=T)
 ```
 
 It works!
@@ -341,7 +362,7 @@ This is the **Metropolis Algorithm**
 
 
 ```{r}
-curve(posterior, 
+curve(posterior, col="gray80",
       from=-1, to=10, 
       xlab=expression(theta), 
       ylab=expression(Pr(x~"|"~theta)~Pr(theta)))
@@ -376,7 +397,7 @@ xs <- seq(0, 10, length.out=500)
 
 
 ```{r}
-curve(posterior, 
+curve(posterior, col="gray90",
       from=0, to=10, 
       xlab=expression(theta), 
       ylab=expression(Pr(x~"|"~theta)~Pr(theta)))
@@ -407,11 +428,26 @@ $$
 
 and it works!
 
-## But... higher dimensional problems
+## Gibbs sampling {.smaller}
+
+A widespread alternative is Gibbs sampling (WinBugs, JAGS)
+
+Like moving along posterior one dimension at a time
+
+1.  Start with an initial guess
+2.  For $\theta_1$, sample it conditional on the other variables ($\theta_2, \theta_3,...,\theta_n$) in their prior state
+    - proposal always has a ratio of 1... is always accepted
+3.  Update that variable with this new sample
+4.  Repeat for the remaining variables (one iteration) 
+5.  Keep repeating for steps 2--4
+
+Suffers from correlation among variables 
+
+## But... higher dimensions cause problems {.smaller}
 
 ```{r}
-u <- runif(1000,0,1) 
-v <- runif(1000,0,1) 
+u <- rnorm(1000,0,1) 
+v <- rnorm(1000,0,1) 
 theta <- 2 * pi * u 
 phi   <- acos(2 * v - 1) 
 x <- sin(theta) * cos(phi) 
@@ -423,8 +459,10 @@ cloud(z ~ x + y)
 
 Imagine a proposed jump from one of these points could easily be far from posterior density
 
--  Gets worse with higher N
+-  Gets worse with higher N (There are more ways to go in the wrong direction)
 -  Many to most proposals are rejected $\longrightarrow$ inefficient
+
+Gibbs sampling gets slowed down, too.
 
 ## Solution: HMC {.smaller}
 
@@ -433,7 +471,7 @@ Imagine a proposed jump from one of these points could easily be far from poster
 - pretends the (negative-log) posterior is a surface 
 - simulates a ball rolling along that (without friction)
 - produces proposals informed by topography
-- otherwise like Metropolis-Hastings
+- thus proposals (that fit some criteria) are always accepted
 
 ## HMC {.smaller}
 
@@ -457,21 +495,33 @@ curve(-log(posterior(x)),
 
 ## HMC {.smaller}
 
+But remember, we cannot see it
 ```{r}
-curve(-log(posterior(x)), 
+curve(-log(posterior(x)), col="gray90",
+      from=0, to=10, n=1001,
+      xlab=expression(theta), 
+      ylab=expression(-log(Pr(x~"|"~theta)~Pr(theta))))
+```
+
+We can only calculate the height given a value of $\theta$
+
+## HMC {.smaller}
+
+```{r}
+curve(-log(posterior(x)),  col="gray90",
       from=0, to=10, n=1001,
       xlab=expression(theta), 
       ylab=expression(-log(Pr(x~"|"~theta)~Pr(theta))))
 points(0.5, -log(posterior(0.5)) +0.1, pch=16, col = "red") 
 ```
 
-Take the first guess 
+Take a first guess 
 
 
 ## HMC {.smaller}
 
 ```{r}
-curve(-log(posterior(x)), 
+curve(-log(posterior(x)),  col="gray90",
       from=0, to=10, n=1001,
       xlab=expression(theta), 
       ylab=expression(-log(Pr(x~"|"~theta)~Pr(theta))))
@@ -484,7 +534,7 @@ arrows(x0=0.5, x1=0, y0=-log(posterior(0.5)) +0.1, length=1/10, col="red")
 ## HMC {.smaller}
 
 ```{r}
-curve(-log(posterior(x)), 
+curve(-log(posterior(x)),  col="gray90",
       from=0, to=10, n=1001,
       xlab=expression(theta), 
       ylab=expression(-log(Pr(x~"|"~theta)~Pr(theta))))
@@ -505,18 +555,16 @@ E &= U(\theta) + K(\text{momentum})
 \end{align}
 $$
 
-After a bit of time, point at end is the new proposal
-
-- Proposals tend to be in areas with higher probability density
+After some pre-determined amount of time, the position of the point is the new proposal
 
 ## HMC {.smaller}
 ```{r}
-curve(-log(posterior(x)), 
+curve(-log(posterior(x)),  col="gray90",
       from=0, to=10, n=1001,
       xlab=expression(theta), 
       ylab=expression(-log(Pr(x~"|"~theta)~Pr(theta))))
-points(c(0.18,0.6,0.85,1.2,1.6,2.2,3.2,3.6,4),
-       -log(posterior(c(0.18,0.6,0.85,1.2,1.6,2.2,3.2,3.6,4))) +0.1, pch=16, col = rgb(1,0,0, 2:10/10))
+points(c(0.5, 0.38, 0.3, 0.23, 0.18,0.6,0.85,1.3,1.85,3.1,4),
+       -log(posterior(c(0.5, 0.38, 0.3, 0.23, 0.18,0.6,0.85,1.3,1.85,3.1,4))) +0.1, pch=16, col = rgb(1,0,0, 2:12/12))
 ```
 
 Track it's movement for a certain amount of "time" using Hamiltonian equations 
@@ -528,9 +576,7 @@ E &= U(\theta) + K(\text{momentum})
 \end{align}
 $$
 
-After a bit of time, point at end is the new proposal
-
-- Proposals tend to be in areas with higher probability density
+Proposals tend to be in areas with higher probability density
 <!-- ## HMC {.smaller} -->
 <!-- ```{r} -->
 <!-- curve(-log(posterior(x)),  -->
@@ -549,12 +595,14 @@ No analytic solution to Hamiltonian for most problems, so:
 - solve it numerically over a series of steps (**Leapfrog algorithm**)
     
 ```{r}
-curve(-log(posterior(x)), 
+curve(-log(posterior(x)), col="gray90",
       from=0, to=10, n=1001,
       xlab=expression(theta), 
       ylab=expression(-log(Pr(x~"|"~theta)~Pr(theta))))
-points(c(0.18,0.6,0.85,1.2,1.6,2.2,3.2,3.6,4),
-       -log(posterior(c(0.18,0.6,0.85,1.2,1.6,2.2,3.2,3.6,4))) + 0.05*((-1)^(1:9)), pch=16, col = "red", type="b")
+points(c(0.5, 0.38, 0.3, 0.23, 0.18,0.6,0.85,1.3,1.85,3.1,4),
+       -log(posterior(c(0.5, 0.38, 0.3, 0.23, 0.18,0.6,0.85,1.3,1.85,3.1,4))) + 0.05*((-1)^(1:9)), pch=16, col = "red", type="l")
+points(c(0.5, 0.38, 0.3, 0.23, 0.18,0.6,0.85,1.3,1.85,3.1,4),
+       -log(posterior(c(0.5, 0.38, 0.3, 0.23, 0.18,0.6,0.85,1.3,1.85,3.1,4))) + 0.05*((-1)^(1:9)), pch=16, col = rgb(1,0,0, 2:12/12))
 
 ```
 
@@ -574,6 +622,18 @@ No analytic solution to Hamiltonian for most problems, so:
   - unless there were divergences, we should accept
   - divergences suggest a problem we need to fix
 
+## Divergences & related problems with the surface {.smaller}
+
+Assumes a continuous likelihood surface, so _no discrete parameters_ allowed! 
+
+  - WinBugs/JAGS allow for $\theta \in \{0,1\}$ (can be useful for occupancy and similar models)
+  - In HMC we "integrate out" these discrete parameters... faster & simpler
+
+Similarly, very sharp surfaces cause problems and produce divergences 
+
+  - Don't ignore them! Part of your posterior is not being sampled well!
+  
+
 ## HMC details {.smaller}
 
 
@@ -581,11 +641,7 @@ Overall, each proposal requires many more calculations (many steps, calculating 
 
   - Most of the time with Stan is compiling code in C++
   - Running is _fast_!
+  - Get warnings of fitting problems practically for free!
 
-Assumes a continuous likelihood surface, so _no discrete parameters_! 
 
-  - WinBugs/JAGS allow for $\theta \in \{0,1\}$ (can be useful for occupancy and similar models)
-  - In HMC we "integrate out" these discrete parameters... faster & simpler
-  
-Other problems involve hard-to-simulate likelihood surfaces (more later)
 
