@@ -59,6 +59,8 @@ Let's work with some real (made up) data. Imagine we have a dose-response experi
 
 Let's make up data.
 ```{r}
+#| message: false
+#| warning: false
 library(rethinking)
 # values for the regression
 a <- -5
@@ -120,6 +122,9 @@ for(i in 1:length(as)){
 I'm happier with that. We could go ahead and fit a basic logistic regression to these data, as follows:
 
 ```{r}
+#| message: false
+#| warning: false
+#| output: false
 m0 <- ulam(
   alist(
     dead ~ dbinom(20, p),
@@ -131,7 +136,9 @@ m0 <- ulam(
   ),
   data = df, chains=4, cores=4
 )
+```
 
+```{r}
 precis(m0)
 ```
 
@@ -147,6 +154,9 @@ hist(thetas, breaks = 50)
 
 The model is veyr much the same, only we've added in the prior for theta (actually for `log_theta`, which is then exponentiated to be positive) and changed our distribution.
 ```{r}
+#| message: false
+#| warning: false
+#| output: false
 m1 <- ulam(
   alist(
     dead ~ dbetabinom(20, p, theta),
@@ -160,7 +170,9 @@ m1 <- ulam(
   ),
   data = df, chains=4, cores=4
 )
+```
 
+```{r}
 precis(m1)
 ```
 
@@ -335,6 +347,9 @@ curve(exp(dnorm(x, mean=1, sd=1)), from = 0, to = 5)
 
 Now we can construct a model pretty simply. We just need to provide our estimates of `p` and `lambda` and their respective priors. It's deceptively simple.
 ```{r}
+#| message: false
+#| warning: false
+#| output: false
 df2 <- data.frame(calls = calls)
 
 m2 <- ulam(
@@ -348,7 +363,9 @@ m2 <- ulam(
   ), data = df2, 
   chains = 4, cores = 4
 )
+```
 
+```{r}
 precis(m2)
 
 samples <- extract.samples(m2)
@@ -366,6 +383,9 @@ I'm pleased that we do a pretty good job of estimating the probability of absenc
 
 To find out, let's fit a straight up Poisson model.
 ```{r}
+#| message: false
+#| warning: false
+#| output: false
 m3 <- ulam(
   alist(
     calls ~ dpois(lambda),
@@ -376,7 +396,9 @@ m3 <- ulam(
   ), data = df2, 
   chains = 4, cores = 4
 )
+```
 
+```{r}
 precis(m3)
 
 samples <- extract.samples(m3)
