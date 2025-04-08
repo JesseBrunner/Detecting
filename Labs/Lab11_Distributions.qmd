@@ -262,14 +262,14 @@ hist(lambdas)
 summary(lambdas)
 
 # generate random observations from a Poisson  
-counts_betapois <- rpois(n=1e4, lambda=lambdas) # with our varying lambdas
+counts_gammapois <- rpois(n=1e4, lambda=lambdas) # with our varying lambdas
 counts_pois <- rpois(n=1e4, lambda = mean(lambdas)) # or a constant value
 
-hist(counts_betapois, breaks = 0:max(counts_betapois))
-hist(counts_pois, breaks = 0:max(counts_betapois),
+hist(counts_gammapois, breaks = 0:max(counts_gammapois))
+hist(counts_pois, breaks = 0:max(counts_gammapois),
      col=NULL, border = "red", add=TRUE)
 
-summary(counts_betapois)
+summary(counts_gammapois)
 summary(counts_pois)
 ```
 
@@ -279,14 +279,14 @@ Another name for this is the negative binomial.
 ```{r}
 counts_nb <- rnbinom(n=1e4, mu = 4, size = 2)
 
-hist(counts_betapois, breaks = 0:max(counts_nb))
+hist(counts_gammapois, breaks = 0:max(counts_nb))
 hist(counts_pois, breaks = 0:max(counts_nb),
      col=NULL, border = "red", add=TRUE)
 hist(counts_nb, breaks = 0:max(counts_nb),
      col=NULL, border = "blue", add=TRUE)
 ```
 
-See? We can recapitulate the beta-Poisson distribution (gray bars) with the negative binomial (blue)...because they are the same distribution. If you do the math, you'll see the relationship between parameters of the gamma and parameters of the negative binomial (in particular, the over-dispersion parameter, `size`, often written as $k$... I think `size` of the NB = 1/`rate` of the gamma, and vice versa). The larger the value of `size`, the more the results converge on the Poisson. 
+See? We can recapitulate the gamma-Poisson distribution (gray bars) with the negative binomial (blue)...because they are the same distribution. If you do the math, you'll see the relationship between parameters of the gamma and parameters of the negative binomial (in particular, the over-dispersion parameter, `size`, often written as $k$... I think `size` of the NB = 1/`rate` of the gamma, and vice versa). The larger the value of `size`, the more the results converge on the Poisson. 
 
 When I started looking at tick burdens on hosts and realized they were strongly over-dispersed, I got very excited about the possibility of inferring the process that led to the pattern in the data. A little reading about the negative binomial distribution, however, was a splash of cold water. There are a bazillion ways of arriving at the NB (See, for instance, [the wikipedia page](https://en.wikipedia.org/wiki/Negative_binomial_distribution)), from sequences of failures before $x$ successes to balls in urns to some of the sorts of examples I've given. In short, it's impossible to infer process from pattern alone. Again. 
 
