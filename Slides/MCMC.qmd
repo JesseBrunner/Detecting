@@ -531,6 +531,8 @@ arrows(x0=0.5, x1=0, y0=-log(posterior(0.5)) +0.1, length=1/10, col="red")
 
 ...and give it a bit of momentum (in a direction of parameter space)
 
+_Distribution of momentum comes from standard (multivariate) normal distribution_
+
 ## HMC {.smaller}
 
 ```{r}
