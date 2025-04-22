@@ -31,12 +31,12 @@ Most of this is just like last time. The hard part is that we need to simulate d
 ```{r, include=TRUE}
 #| echo: true
 
-set.seed(42) # for reproducability
+set.seed(101) # for reproducability
 
-r_mu <- 1.5 # mean growth rate
+r_mu <- 3.5 # mean growth rate
 r_sig <- 0.5 # sd of growth rate
 lV0_mu <- 4.6 # mean initial virus population = log(100) 
-lV0_sig <- 1.5 # sd of initial virus population
+lV0_sig <- 1 # sd of initial virus population
 rho <- -0.65 # correlation between lV0 and r
 
 # vector of means
@@ -57,7 +57,7 @@ library(rethinking)
 # standard deviations of the distribution in the x & y directions
 sigmas <- c(1, 1.25)
 # correlation between x & y
-rho <- -0.5
+rho <- -0.65
 
 # correlation matrix
 ( Rho <- matrix( c(1, rho, 
@@ -210,7 +210,9 @@ And we can plot these made up data:
 ```{r}
 plot(lV ~ day, data=df, type = "n")
 for(i in 1:nS){
-  points(lV ~ day, data=df[df$ID==i,], type = "b")
+  points(lV ~ day, data=df[df$ID==i,], type = "b", 
+         col = rainbow(nS)[i])
+
 }
 ```
 
@@ -219,10 +221,9 @@ for(i in 1:nS){
 We have the tools already to fit a model where both the intercept (=$V_0$) and the slope (=$r$) for each virus strain are drawn from distributions. Let's implement this first. 
 
 ```{r}
-#| echo: true
-#| results: false
+#| results: hide
 #| message: false
-#| warning: true
+#| warning: false
 m1 <- ulam(
   alist(
     lV ~ dnorm(mu, sigma), 
@@ -247,21 +248,21 @@ precis(m1)
 post1 <- extract.samples(m1)
 
 # mean lV0
-dens(post1$a_mu)
+dens(post1$a_mu, adj=1)
 abline(v=Mu[1]) # True value
 # sd of lV0
-dens(post1$a_sd)
+dens(post1$a_sd, adj=1)
 abline(v=sigmas[1]) # True value
 
 # mean r
-dens(post1$b_mu)
+dens(post1$b_mu, adj=1)
 abline(v=Mu[2]) # True value
 # sd of r
-dens(post1$b_sd)
+dens(post1$b_sd, adj=1)
 abline(v=sigmas[2]) # True value
 ```
 
-We seem to be doing a pretty good job of estimating the True parameter values for the distributions of the starting virus population size and growth rates, even without accounting for the correlation structure in those parameters. 
+We seem to be doing a reasonable job of estimating the True parameter values for the distributions of the starting virus population size and growth rates, even without accounting for the correlation structure in those parameters. 
 
 Dig a bit into the `precis(m1, depth=2)` output to make sure you see what's what.
 
@@ -297,10 +298,9 @@ I'm just going to launch into the code. Note that pairs of parameters, `a` and `
 The only other addition is a prior for the correlation coefficient, which is the `lkj_corr()` call. We'll see some code, below, for simulating values from the LKJ distribution, but for now let's just run the model.
 
 ```{r}
-#| echo: true
 #| results: hide
 #| message: false
-#| warning: true
+#| warning: false
 m2 <- ulam(
   alist(
     lV ~ dnorm(mu, sigma), 
@@ -323,6 +323,12 @@ precis(m2, depth=2, pars = c("a_mu", "b_mu", "sigma_ID", "sigma"))
 ```
 
 The estimates, at a course level, looks similar to what we observed in `m1` (recognizing that `sigma_ID[1]` $\approx$ `a_sd` and `sigma_ID[2]` $\approx$ `b_sd`). 
+We can also see our estimate for the correlations among parameters with
+
+```{r}
+precis(m2, depth=3, pars = c("Rho"))
+```
+
 
 
 ::: {.callout-tip}
@@ -336,7 +342,7 @@ This second model included the covariation (or correlation) between the paramete
 post2 <- extract.samples(m2)
 
 # histogram of the estimated correlation
-dens( post2$Rho[,1,2], xlim=c(-1,1))
+dens( post2$Rho[,1,2], xlim=c(-1,1), adj=1)
 
 # put in a line for the True correlation
 abline(v=rho, col = "grey")
@@ -348,7 +354,7 @@ text(x=with(params, cor(lV0, r)), y=0.25, adj=c(-0.05, 1), labels = "Emperical r
 
 # add in the priors
 R <- rlkjcorr(1e4, K=2, eta=2)
-dens(R[,1,2], add=TRUE, lty=2)
+dens(R[,1,2], add=TRUE, lty=2, adj = 1)
 ```
 
 That wasn't bad! Note that we have a True value of the correlation between `a` and `b`, `rho` = `r rho`, but then there is the empirical value this correlation between the values of `a` and `b` we simulated for the `nS` = `r nS` strains, which I'm also plotting. The model can only know about the True correlation due to its influence on the empirical (but unknown except in simulation) values of those parameters, so that's a bit more relevant and we do a pretty good job of estimating it. As the number of strains increase we should see the empirical values converge on the True value.   
@@ -418,7 +424,7 @@ m2b <- ulam(
     # adaptive priors - non-centered
     # generates a matrix of deviations with nS rows and 2 columns
     transpars> matrix[ID, 2]:alpha <-
-      compose_noncentered( sigma_ID, L_Rho_ID, z_ID),
+      compose_noncentered( sigma_ID, L_Rho_ID, z_ID ),
     
     # normal deviates, two for each strain
     matrix[2,ID]:z_ID ~ normal( 0 , 1 ),
@@ -450,9 +456,9 @@ precis(m2b)
 post2b <- extract.samples(m2b)
 
 # histogram of the estimated correlation
-dens( post2$Rho[,1,2], xlim=c(-1,1), col = "black")
-dens( post2b$Rho[,1,2], add=TRUE, col = "blue")
-dens(R[,1,2], add=TRUE, lty=2)
+dens( post2$Rho[,1,2], xlim=c(-1,1), col = "black", adj=1)
+dens( post2b$Rho[,1,2], add=TRUE, col = "blue", adj=1)
+dens(R[,1,2], add=TRUE, lty=2, adj=1)
 
 # put in a line for the True correlation
 abline(v=rho, col = "grey")
