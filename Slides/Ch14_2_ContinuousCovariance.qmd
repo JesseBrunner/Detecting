@@ -34,9 +34,8 @@ library(dagitty)
 ```{r}
 #| fig-width:  2.5
 #| fig-height: 2.5
-#| fig-format: svg
-#| out-width: 100% 
-#| out-height: 55%
+
+#| 
 dag1 <- dagitty("dag{
 Size -> Productivity <- U
 U [unobserved]
@@ -52,57 +51,10 @@ drawdag(dag1)
 
 How do we account for nearness and thus shared unobserved correlations?
 
-## Enter the continuous covariance
-
-So far we have thought of the covariance in parameters (features) of distinct groups
-
-Here we will consider covariances in the deviations of groups from the prediction
-
-Want a function where covariance declines with distance between two points or ponds (or whatever)
-
-## The Gaussian version of covariance: {.smaller}
-
-:::: {.columns}
-
-::: {.column width="50%"}
-$$
-K_{i,j} = \eta^2 e^{-\rho^2 D_{i,j}^2} + \delta
-$$
-```{r}
-#| echo: true
-
-L2 <- function(x, eta, rho, delta){
-  eta^2 * exp(-rho^2 * x^2) + delta
-}
-```
-:::
-
-::: {.column width="50%"}
-```{r}
-#| fig-width: 4
-#| fig-height: 4
-#| out-width: 100%
-#| out-height: 100%  
-#| fig-format: svg
-curve(L2(x, eta=2, rho=1/2, delta = 0.1), 
-      ylab="Covariance", xlab="Distance",
-      from = 0, to = 4)
-text(x=1.8, y=2, adj=c(0,0), 
-     labels = expression(eta==2~rho==1/2))
-curve(L2(x, eta=2, rho=1, delta = 0.1), 
-      add = T, col = "red")
-text(x=1, y=1.5, adj=c(0,0), 
-     labels = expression(eta==2~rho==2), col="red")
-curve(L2(x, eta=1, rho=1, delta = 0.1), 
-      add = T, col = "blue")
-text(x=0.4, y=0.9, adj=c(0,0), 
-     labels = expression(eta==1~rho==2), col="blue")
-```
-:::
-
-::::
 
 ## Simulate some ponds {.smaller}
+
+It's always a good strategy to start with simulation
 
 :::: {.columns}
 
@@ -123,9 +75,7 @@ sizes <- rnorm(n=10, mean=3, sd=1)
 ```{r}
 #| fig-width: 4.5
 #| fig-height: 4.5
-#| out-width: 100%
-#| out-height: 100%  
-#| fig-format: svg
+
 plot(xs, ys, 
      cex = sqrt(sizes),
      xlim=c(0, 10), ylim=c(0, 10))
@@ -139,6 +89,8 @@ text(x=xs, y=ys,
 
 ## Calculate distances between pairs {.smaller}
 
+If we know their locations, we can find the distances between them
+
 :::: {.columns}
 
 ::: {.column width="50%"}
@@ -147,6 +99,9 @@ text(x=xs, y=ys,
 D <- dist(as.matrix(cbind(xs, ys)))
 (D <- round( as.matrix(D), 2) )
 ```
+
+What does this matrix show us?
+
 :::
 
 ::: {.column width="50%"}
@@ -155,7 +110,7 @@ D <- dist(as.matrix(cbind(xs, ys)))
 #| fig-height: 4.5
 #| out-width: 100%
 #| out-height: 100%  
-#| fig-format: svg
+
 plot(xs, ys, 
      cex = sqrt(sizes),
      xlim=c(0, 10), ylim=c(0, 10))
@@ -167,7 +122,84 @@ text(x=xs, y=ys,
 
 ::::
 
-## Simulate data: covariances
+But now what?
+
+## Enter the continuous covariance {.smaller}
+
+So far we have thought of the covariance in (deviations from) parameters of distinct groups, $i = 1,2,3,...$
+
+Here we will consider covariances in shared deviations of groups (or places) based on some metric of _distance_.
+
+$\rightarrow$ Want a function where covariance declines with distance between two points or ponds (or whatever)
+
+## The Gaussian version of covariance {.smaller}
+
+:::: {.columns}
+
+::: {.column width="50%"}
+$$
+K_{i,j} = \eta^2 e^{-\rho^2 D_{i,j}^2} + \delta
+$$
+  -  $\eta^2 $ is the maximum covariance at $D = 0$ 
+  -  $\rho$ describes the rate of decay with $D$ 
+  -  $\delta$ is the minimum covariance possible (maybe `1e-9`) to avoid zeros
+  
+
+```{r}
+#| echo: true
+
+L2 <- function(x, eta, rho, delta){
+  eta^2 * exp(-rho^2 * x^2) + delta
+}
+```
+
+:::
+
+::: {.column width="50%"}
+```{r}
+#| fig-width: 4
+#| fig-height: 4
+#| out-width: 100%
+#| out-height: 100%  
+
+
+curve(L2(x, eta=2, rho=1/2, delta = 0.1), 
+      ylab="Covariance", xlab="Distance",
+      from = 0, to = 4)
+text(x=1.8, y=2, adj=c(0,0), 
+     labels = expression(eta==2~rho==1/2))
+curve(L2(x, eta=2, rho=1, delta = 0.1), 
+      add = T, col = "red")
+text(x=1, y=1.5, adj=c(0,0), 
+     labels = expression(eta==2~rho==2), col="red")
+curve(L2(x, eta=1, rho=1, delta = 0.1), 
+      add = T, col = "blue")
+text(x=0.4, y=0.9, adj=c(0,0), 
+     labels = expression(eta==1~rho==2), col="blue")
+```
+:::
+
+::::
+
+NB: There are lots of other possible covariance functions 
+
+See: https://biol609.github.io/lectures/autocorr.html
+
+
+## Simulate the covariances among ponds {.smaller}
+
+We can use the Gaussian process to calculate covariances based on distances.
+
+:::: {.columns}
+
+::: {.column width="50%"}
+```{r}
+#| echo: true
+
+L2 <- function(x, eta, rho, delta){
+  eta^2 * exp(-rho^2 * x^2) + delta
+}
+```
 
 ```{r}
 #| echo: true
@@ -176,6 +208,27 @@ rho <- 0.5 # rate of decline in covariance
 delta <- 0
 round( Sigma <- L2(D, eta, rho, delta), 2 )
 ```
+:::
+
+::: {.column width="50%"}
+
+```{r}
+#| fig-width: 4.5
+#| fig-height: 4.5
+#| out-width: 100%
+#| out-height: 100%  
+
+plot(xs, ys, 
+     cex = sqrt(sizes),
+     xlim=c(0, 10), ylim=c(0, 10))
+text(x=xs, y=ys, 
+     labels = 1:10, 
+     adj = c(-0.5,-0.25))
+```
+
+:::
+
+::::
 
 ## Simulate data: observations | covariances {.smaller}
 
@@ -200,7 +253,8 @@ p <- MASS::mvrnorm(n=1,
 #| fig-height: 4.5
 #| out-width: 100%
 #| out-height: 100%  
-#| fig-format: svg
+
+
 plot(p ~ I(sizes-2.5), xlab="Size (centered on 2.5)", ylab="Productivity")
 text(x=sizes-2.5, y=p, labels = 1:10, adj = c(-0.5,-0.25))
 abline(a=a, b=b)
@@ -210,7 +264,7 @@ abline(a=a, b=b)
 ::::
 
 
-## A model: pond size only
+## A model: pond size only {.smaller}
 
 ```{r}
 #| echo: true
@@ -234,7 +288,7 @@ m1 <- ulam(
 precis(m1)
 ```
 
-## A model: pond size + distance
+## A model: pond size + distance {.smaller}
 
 ```{r}
 #| echo: true
@@ -268,11 +322,42 @@ post1 <- extract.samples(m1)
 post2 <- extract.samples(m2)
 ```
 
-## The Gaussian process
+
+## Estimates of the decay in covariance
 
 ```{r}
-#| out-width: 100% #| fig-format: svgin
-#| 
+#| out-width: 100% 
+#| out-height: 100%  
+
+
+curve(L2(x, 
+         eta=sqrt(rexp(1, rate=1)), 
+         rho=sqrt(rexp(1, rate=1)), 
+         delta=0), from = 0, to=10, 
+      col = col.alpha("grey", alpha = 0.2),
+      xlab="distance", 
+      ylab="Covariances", ylim = c(0,3)) 
+
+for(i in 2:2000){
+  curve(L2(x, 
+           eta=sqrt(rexp(1, rate=1)), 
+           rho=sqrt(rexp(1, rate=1)), 
+           delta=0), add=T, col = col.alpha("darkgray", alpha = 0.2))
+}
+
+
+```
+
+black is prior and blue is posterior
+
+
+## Estimates of the decay in covariance
+
+```{r}
+#| out-width: 100% 
+#| out-height: 100%  
+
+
 curve(L2(x, 
          eta=sqrt(rexp(1, rate=1)), 
          rho=sqrt(rexp(1, rate=1)), 
@@ -285,7 +370,7 @@ for(i in 2:2000){
   curve(L2(x, 
            eta=sqrt(rexp(1, rate=1)), 
            rho=sqrt(rexp(1, rate=1)), 
-           delta=0), add=T, col = col.alpha("grey", alpha = 0.1))
+           delta=0), add=T, col = col.alpha("darkgrey", alpha = 0.2))
 }
 
 for(j in 1:2000){
@@ -295,22 +380,30 @@ for(j in 1:2000){
            delta = 0
   ), 
   add=T, 
-  col = col.alpha("blue", alpha = 0.1)
+  col = col.alpha("darkblue", alpha = 0.1)
   )
 }
+
+
+
 
 curve(L2(x, eta, rho, delta), add=T, col = "red")
 ```
 
 black is prior and blue is posterior
+red is True relationship
 
-## Comparing models
+## Comparing estimates of the relationship between pond size and productivity {.smaller}
+
 
 ```{r}
-dens(post1$b, adj = 0.75, xlab="values of b")
-dens(post2$b, adj = 0.75, add=T, col = "blue")
+dens(post2$b, adj = 1, xlab="values of b", col = "blue")
+dens(post1$b, adj = 1, add=T)
 curve(dnorm(x, 0, 1), add = T, lty=2)
-abline(v=b, col="gray")
+abline(v=b, col="darkgray")
+
+text(x=b, y=0.5, adj=c(-0.05, 1), labels = "True value of b", col = "darkgray")
+
 ```
 black is `m1` (without space) and blue is `m2` (distances)
 
